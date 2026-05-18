@@ -58,6 +58,9 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
+ALTER TABLE subjects ADD CONSTRAINT unique_subject_name UNIQUE (name);
+ALTER TABLE classes ADD CONSTRAINT unique_class_name UNIQUE (name);
+ALTER TABLE users ADD CONSTRAINT unique_user_email UNIQUE (email);
 ALTER TABLE grades ADD COLUMN IF NOT EXISTS grade_type grade_type DEFAULT 'classwork';
 
 CREATE TABLE IF NOT EXISTS homework (
@@ -120,11 +123,6 @@ CREATE INDEX IF NOT EXISTS idx_schedule_class ON schedule(class_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_teacher ON schedule(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_day_lesson ON schedule(day_of_week, lesson_number);
 
--- =====================================================
--- 8. ТРИГГЕР ДЛЯ AUTO-UPDATE updated_at В grades
--- =====================================================
-
--- Функция для обновления updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -133,7 +131,6 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Триггер для таблицы grades
 DROP TRIGGER IF EXISTS update_grades_updated_at ON grades;
 CREATE TRIGGER update_grades_updated_at
     BEFORE UPDATE ON grades

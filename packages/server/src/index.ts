@@ -1,11 +1,12 @@
 import express, { Application } from 'express';
+import dotenv from 'dotenv';    
+import PgSession from 'connect-pg-simple';
+import pool from './db/pool'; 
 import path from 'path';
 import session from 'express-session';
 import authRoutes from './routes/auth_routes';
 import gradebookRoutes from './routes/gradebook_routes';
-import dotenv from 'dotenv';    
-import PgSession from 'connect-pg-simple';
-import pool from './db/pool'; 
+import scheduleRoutes from './routes/schedule_routes';
 
 dotenv.config();
 
@@ -39,6 +40,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/gradebook', gradebookRoutes);
+app.use('/api/schedule', scheduleRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
