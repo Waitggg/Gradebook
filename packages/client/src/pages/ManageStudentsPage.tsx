@@ -8,10 +8,24 @@ interface Student {
   created_at: string;
 }
 
+interface Teacher {
+  id: number;
+  name: string;
+  email: string;
+  created_at: string;
+}
+
 interface Class {
   id: number;
   name: string;
   year: number;
+  created_at: string;
+}
+
+interface Subject {
+  id: number;
+  name: string;
+  description: string;
   created_at: string;
 }
 
@@ -38,24 +52,31 @@ function ManageStudentsPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<'teacher' | 'student' | null>(null);
+  const [activeTab, setActiveTab] = useState('students');
   
   const [students, setStudents] = useState<Student[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [studentClasses, setStudentClasses] = useState<StudentClass[]>([]);
-  const [teachers, setTeachers] = useState<Student[]>([]);
-  const [subjects, setSubjects] = useState<{ id: number; name: string }[]>([]);
   const [teacherSubjects, setTeacherSubjects] = useState<TeacherSubject[]>([]);
   
   const [showStudentModal, setShowStudentModal] = useState(false);
+  const [showTeacherModal, setShowTeacherModal] = useState(false);
   const [showClassModal, setShowClassModal] = useState(false);
+  const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showTeacherSubjectModal, setShowTeacherSubjectModal] = useState(false);
   
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [editingClass, setEditingClass] = useState<Class | null>(null);
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   
   const [studentForm, setStudentForm] = useState({ name: '', email: '', password: '' });
+  const [teacherForm, setTeacherForm] = useState({ name: '', email: '', password: '' });
   const [classForm, setClassForm] = useState({ name: '', year: new Date().getFullYear() + 3 });
+  const [subjectForm, setSubjectForm] = useState({ name: '', description: '' });
   const [assignForm, setAssignForm] = useState({ student_id: 0, class_id: 0 });
   const [teacherSubjectForm, setTeacherSubjectForm] = useState({ teacher_id: 0, subject_id: 0, class_id: 0 });
 
@@ -88,10 +109,10 @@ function ManageStudentsPage() {
   const loadAllData = async () => {
     await Promise.all([
       loadStudents(),
-      loadClasses(),
-      loadStudentClasses(),
       loadTeachers(),
+      loadClasses(),
       loadSubjects(),
+      loadStudentClasses(),
       loadTeacherSubjects()
     ]);
   };
@@ -108,30 +129,6 @@ function ManageStudentsPage() {
     }
   };
 
-  const loadClasses = async () => {
-    try {
-      const response = await fetch('/api/gradebook/classes', { credentials: 'include' });
-      if (response.ok) {
-        const data = await response.json();
-        setClasses(data.classes || []);
-      }
-    } catch (error) {
-      console.error('Load classes error:', error);
-    }
-  };
-
-  const loadStudentClasses = async () => {
-    try {
-      const response = await fetch('/api/gradebook/student-classes', { credentials: 'include' });
-      if (response.ok) {
-        const data = await response.json();
-        setStudentClasses(data.student_classes || []);
-      }
-    } catch (error) {
-      console.error('Load student classes error:', error);
-    }
-  };
-
   const loadTeachers = async () => {
     try {
       const response = await fetch('/api/gradebook/teachers', { credentials: 'include' });
@@ -144,6 +141,18 @@ function ManageStudentsPage() {
     }
   };
 
+  const loadClasses = async () => {
+    try {
+      const response = await fetch('/api/gradebook/classes', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setClasses(data.classes || []);
+      }
+    } catch (error) {
+      console.error('Load classes error:', error);
+    }
+  };
+
   const loadSubjects = async () => {
     try {
       const response = await fetch('/api/gradebook/subjects', { credentials: 'include' });
@@ -153,6 +162,18 @@ function ManageStudentsPage() {
       }
     } catch (error) {
       console.error('Load subjects error:', error);
+    }
+  };
+
+  const loadStudentClasses = async () => {
+    try {
+      const response = await fetch('/api/gradebook/student-classes', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setStudentClasses(data.student_classes || []);
+      }
+    } catch (error) {
+      console.error('Load student classes error:', error);
     }
   };
 
@@ -235,6 +256,73 @@ function ManageStudentsPage() {
     }
   };
 
+  const handleCreateTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await fetch('/api/gradebook/teachers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(teacherForm),
+        credentials: 'include'
+      });
+      if (response.ok) {
+        setShowTeacherModal(false);
+        setTeacherForm({ name: '', email: '', password: '' });
+        loadTeachers();
+      } else {
+        const error = await response.json();
+        alert(error.message || 'Ошибка создания учителя');
+      }
+    } catch (error) {
+      console.error('Create teacher error:', error);
+      alert('Ошибка создания учителя');
+    }
+  };
+
+  const handleUpdateTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTeacher) return;
+    try {
+      const response = await fetch(`/api/gradebook/teachers/${editingTeacher.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: teacherForm.name, email: teacherForm.email }),
+        credentials: 'include'
+      });
+      if (response.ok) {
+        setShowTeacherModal(false);
+        setEditingTeacher(null);
+        setTeacherForm({ name: '', email: '', password: '' });
+        loadTeachers();
+      } else {
+        const error = await response.json();
+        alert(error.message || 'Ошибка обновления учителя');
+      }
+    } catch (error) {
+      console.error('Update teacher error:', error);
+      alert('Ошибка обновления учителя');
+    }
+  };
+
+  const handleDeleteTeacher = async (id: number) => {
+    if (!confirm('Вы уверены, что хотите удалить этого учителя?')) return;
+    try {
+      const response = await fetch(`/api/gradebook/teachers/${id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (response.ok) {
+        loadTeachers();
+        loadTeacherSubjects();
+      } else {
+        alert('Ошибка удаления учителя');
+      }
+    } catch (error) {
+      console.error('Delete teacher error:', error);
+      alert('Ошибка удаления учителя');
+    }
+  };
+
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -300,6 +388,73 @@ function ManageStudentsPage() {
     } catch (error) {
       console.error('Delete class error:', error);
       alert('Ошибка удаления класса');
+    }
+  };
+
+  const handleCreateSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await fetch('/api/gradebook/subjects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subjectForm),
+        credentials: 'include'
+      });
+      if (response.ok) {
+        setShowSubjectModal(false);
+        setSubjectForm({ name: '', description: '' });
+        loadSubjects();
+      } else {
+        const error = await response.json();
+        alert(error.message || 'Ошибка создания предмета');
+      }
+    } catch (error) {
+      console.error('Create subject error:', error);
+      alert('Ошибка создания предмета');
+    }
+  };
+
+  const handleUpdateSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSubject) return;
+    try {
+      const response = await fetch(`/api/gradebook/subjects/${editingSubject.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subjectForm),
+        credentials: 'include'
+      });
+      if (response.ok) {
+        setShowSubjectModal(false);
+        setEditingSubject(null);
+        setSubjectForm({ name: '', description: '' });
+        loadSubjects();
+      } else {
+        const error = await response.json();
+        alert(error.message || 'Ошибка обновления предмета');
+      }
+    } catch (error) {
+      console.error('Update subject error:', error);
+      alert('Ошибка обновления предмета');
+    }
+  };
+
+  const handleDeleteSubject = async (id: number) => {
+    if (!confirm('Вы уверены, что хотите удалить этот предмет? Все связанные оценки и назначения будут удалены.')) return;
+    try {
+      const response = await fetch(`/api/gradebook/subjects/${id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (response.ok) {
+        loadSubjects();
+        loadTeacherSubjects();
+      } else {
+        alert('Ошибка удаления предмета');
+      }
+    } catch (error) {
+      console.error('Delete subject error:', error);
+      alert('Ошибка удаления предмета');
     }
   };
 
@@ -395,176 +550,283 @@ function ManageStudentsPage() {
       
       <div className="manage-tabs">
         <div className="tabs-header">
-          <button className="tab-btn active">Студенты</button>
-          <button className="tab-btn">Классы</button>
-          <button className="tab-btn">Привязка студентов</button>
-          <button className="tab-btn">Назначение учителей</button>
+          <button className={`tab-btn ${activeTab === 'students' ? 'active' : ''}`} onClick={() => setActiveTab('students')}>Студенты</button>
+          <button className={`tab-btn ${activeTab === 'teachers' ? 'active' : ''}`} onClick={() => setActiveTab('teachers')}>Учителя</button>
+          <button className={`tab-btn ${activeTab === 'classes' ? 'active' : ''}`} onClick={() => setActiveTab('classes')}>Классы</button>
+          <button className={`tab-btn ${activeTab === 'subjects' ? 'active' : ''}`} onClick={() => setActiveTab('subjects')}>Предметы</button>
+          <button className={`tab-btn ${activeTab === 'assignments' ? 'active' : ''}`} onClick={() => setActiveTab('assignments')}>Привязка студентов</button>
+          <button className={`tab-btn ${activeTab === 'teacher-subjects' ? 'active' : ''}`} onClick={() => setActiveTab('teacher-subjects')}>Назначение учителей</button>
         </div>
         
-        <div className="tab-content active">
-          <div className="section-header">
-            <h2>Список студентов</h2>
-            <button className="btn-primary" onClick={() => {
-              setEditingStudent(null);
-              setStudentForm({ name: '', email: '', password: '' });
-              setShowStudentModal(true);
-            }}>+ Добавить студента</button>
+        {/* Students Tab */}
+        {activeTab === 'students' && (
+          <div className="tab-content active">
+            <div className="section-header">
+              <h2>Список студентов</h2>
+              <button className="btn-primary" onClick={() => {
+                setEditingStudent(null);
+                setStudentForm({ name: '', email: '', password: '' });
+                setShowStudentModal(true);
+              }}>+ Добавить студента</button>
+            </div>
+            
+            <div className="data-table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Имя</th>
+                    <th>Email</th>
+                    <th>Дата регистрации</th>
+                    <th>Действия</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.map((student) => (
+                    <tr key={student.id}>
+                      <td>{student.id}</td>
+                      <td>{student.name}</td>
+                      <td>{student.email}</td>
+                      <td>{new Date(student.created_at).toLocaleDateString()}</td>
+                      <td className="actions">
+                        <button className="btn-edit" onClick={() => {
+                          setEditingStudent(student);
+                          setStudentForm({ name: student.name, email: student.email, password: '' });
+                          setShowStudentModal(true);
+                        }}>✏️</button>
+                        <button className="btn-delete" onClick={() => handleDeleteStudent(student.id)}>🗑️</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-          
-          <div className="data-table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Имя</th>
-                  <th>Email</th>
-                  <th>Дата регистрации</th>
-                  <th>Действия</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((student) => (
-                  <tr key={student.id}>
-                    <td>{student.id}</td>
-                    <td>{student.name}</td>
-                    <td>{student.email}</td>
-                    <td>{new Date(student.created_at).toLocaleDateString()}</td>
-                    <td className="actions">
-                      <button className="btn-edit" onClick={() => {
-                        setEditingStudent(student);
-                        setStudentForm({ name: student.name, email: student.email, password: '' });
-                        setShowStudentModal(true);
-                      }}>✏️</button>
-                      <button className="btn-delete" onClick={() => handleDeleteStudent(student.id)}>🗑️</button>
-                    </td>
+        )}
+        
+        {/* Teachers Tab */}
+        {activeTab === 'teachers' && (
+          <div className="tab-content active">
+            <div className="section-header">
+              <h2>Список учителей</h2>
+              <button className="btn-primary" onClick={() => {
+                setEditingTeacher(null);
+                setTeacherForm({ name: '', email: '', password: '' });
+                setShowTeacherModal(true);
+              }}>+ Добавить учителя</button>
+            </div>
+            
+            <div className="data-table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Имя</th>
+                    <th>Email</th>
+                    <th>Дата регистрации</th>
+                    <th>Действия</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {teachers.map((teacher) => (
+                    <tr key={teacher.id}>
+                      <td>{teacher.id}</td>
+                      <td>{teacher.name}</td>
+                      <td>{teacher.email}</td>
+                      <td>{new Date(teacher.created_at).toLocaleDateString()}</td>
+                      <td className="actions">
+                        <button className="btn-edit" onClick={() => {
+                          setEditingTeacher(teacher);
+                          setTeacherForm({ name: teacher.name, email: teacher.email, password: '' });
+                          setShowTeacherModal(true);
+                        }}>✏️</button>
+                        <button className="btn-delete" onClick={() => handleDeleteTeacher(teacher.id)}>🗑️</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      </div>
-      
-      <div className="tab-content">
-        <div className="section-header">
-          <h2>Список классов</h2>
-          <button className="btn-primary" onClick={() => {
-            setEditingClass(null);
-            setClassForm({ name: '', year: new Date().getFullYear() + 3 });
-            setShowClassModal(true);
-          }}>+ Добавить класс</button>
-        </div>
+        )}
         
-        <div className="data-table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Название</th>
-                <th>Год выпуска</th>
-                <th>Дата создания</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              {classes.map((classItem) => (
-                <tr key={classItem.id}>
-                  <td>{classItem.id}</td>
-                  <td>{classItem.name}</td>
-                  <td>{classItem.year}</td>
-                  <td>{new Date(classItem.created_at).toLocaleDateString()}</td>
-                  <td className="actions">
-                    <button className="btn-edit" onClick={() => {
-                      setEditingClass(classItem);
-                      setClassForm({ name: classItem.name, year: classItem.year });
-                      setShowClassModal(true);
-                    }}>✏️</button>
-                    <button className="btn-delete" onClick={() => handleDeleteClass(classItem.id)}>🗑️</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      
-      <div className="tab-content">
-        <div className="section-header">
-          <h2>Привязка студентов к классам</h2>
-          <button className="btn-primary" onClick={() => setShowAssignModal(true)}>+ Привязать студента</button>
-        </div>
-        
-        <div className="data-table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Студент</th>
-                <th>Класс</th>
-                <th>Дата привязки</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              {studentClasses.map((sc) => {
-                const student = students.find(s => s.id === sc.student_id);
-                const classItem = classes.find(c => c.id === sc.class_id);
-                return (
-                  <tr key={sc.id}>
-                    <td>{sc.id}</td>
-                    <td>{student?.name || sc.student_id}</td>
-                    <td>{classItem?.name || sc.class_id}</td>
-                    <td>{new Date(sc.joined_at).toLocaleDateString()}</td>
-                    <td className="actions">
-                      <button className="btn-delete" onClick={() => handleRemoveStudentFromClass(sc.id)}>🗑️</button>
-                    </td>
+        {/* Classes Tab */}
+        {activeTab === 'classes' && (
+          <div className="tab-content active">
+            <div className="section-header">
+              <h2>Список классов</h2>
+              <button className="btn-primary" onClick={() => {
+                setEditingClass(null);
+                setClassForm({ name: '', year: new Date().getFullYear() + 3 });
+                setShowClassModal(true);
+              }}>+ Добавить класс</button>
+            </div>
+            
+            <div className="data-table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Название</th>
+                    <th>Год выпуска</th>
+                    <th>Дата создания</th>
+                    <th>Действия</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      
-      <div className="tab-content">
-        <div className="section-header">
-          <h2>Назначение учителей на предметы</h2>
-          <button className="btn-primary" onClick={() => setShowTeacherSubjectModal(true)}>+ Назначить учителя</button>
-        </div>
+                </thead>
+                <tbody>
+                  {classes.map((classItem) => (
+                    <tr key={classItem.id}>
+                      <td>{classItem.id}</td>
+                      <td>{classItem.name}</td>
+                      <td>{classItem.year}</td>
+                      <td>{new Date(classItem.created_at).toLocaleDateString()}</td>
+                      <td className="actions">
+                        <button className="btn-edit" onClick={() => {
+                          setEditingClass(classItem);
+                          setClassForm({ name: classItem.name, year: classItem.year });
+                          setShowClassModal(true);
+                        }}>✏️</button>
+                        <button className="btn-delete" onClick={() => handleDeleteClass(classItem.id)}>🗑️</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
         
-        <div className="data-table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Учитель</th>
-                <th>Предмет</th>
-                <th>Класс</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              {teacherSubjects.map((ts) => {
-                const teacher = teachers.find(t => t.id === ts.teacher_id);
-                const subject = subjects.find(s => s.id === ts.subject_id);
-                const classItem = classes.find(c => c.id === ts.class_id);
-                return (
-                  <tr key={ts.id}>
-                    <td>{ts.id}</td>
-                    <td>{teacher?.name || ts.teacher_id}</td>
-                    <td>{subject?.name || ts.subject_id}</td>
-                    <td>{classItem?.name || ts.class_id}</td>
-                    <td className="actions">
-                      <button className="btn-delete" onClick={() => handleRemoveTeacherSubject(ts.id)}>🗑️</button>
-                    </td>
+        {/* Subjects Tab */}
+        {activeTab === 'subjects' && (
+          <div className="tab-content active">
+            <div className="section-header">
+              <h2>Список предметов</h2>
+              <button className="btn-primary" onClick={() => {
+                setEditingSubject(null);
+                setSubjectForm({ name: '', description: '' });
+                setShowSubjectModal(true);
+              }}>+ Добавить предмет</button>
+            </div>
+            
+            <div className="data-table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Название</th>
+                    <th>Описание</th>
+                    <th>Дата создания</th>
+                    <th>Действия</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {subjects.map((subject) => (
+                    <tr key={subject.id}>
+                      <td>{subject.id}</td>
+                      <td>{subject.name}</td>
+                      <td>{subject.description || '-'}</td>
+                      <td>{new Date(subject.created_at).toLocaleDateString()}</td>
+                      <td className="actions">
+                        <button className="btn-edit" onClick={() => {
+                          setEditingSubject(subject);
+                          setSubjectForm({ name: subject.name, description: subject.description || '' });
+                          setShowSubjectModal(true);
+                        }}>✏️</button>
+                        <button className="btn-delete" onClick={() => handleDeleteSubject(subject.id)}>🗑️</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        
+        {/* Student Assignments Tab */}
+        {activeTab === 'assignments' && (
+          <div className="tab-content active">
+            <div className="section-header">
+              <h2>Привязка студентов к классам</h2>
+              <button className="btn-primary" onClick={() => setShowAssignModal(true)}>+ Привязать студента</button>
+            </div>
+            
+            <div className="data-table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Студент</th>
+                    <th>Класс</th>
+                    <th>Дата привязки</th>
+                    <th>Действия</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {studentClasses.map((sc) => {
+                    const student = students.find(s => s.id === sc.student_id);
+                    const classItem = classes.find(c => c.id === sc.class_id);
+                    return (
+                      <tr key={sc.id}>
+                        <td>{sc.id}</td>
+                        <td>{student?.name || sc.student_id}</td>
+                        <td>{classItem?.name || sc.class_id}</td>
+                        <td>{new Date(sc.joined_at).toLocaleDateString()}</td>
+                        <td className="actions">
+                          <button className="btn-delete" onClick={() => handleRemoveStudentFromClass(sc.id)}>🗑️</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        
+        {/* Teacher Subjects Tab */}
+        {activeTab === 'teacher-subjects' && (
+          <div className="tab-content active">
+            <div className="section-header">
+              <h2>Назначение учителей на предметы</h2>
+              <button className="btn-primary" onClick={() => setShowTeacherSubjectModal(true)}>+ Назначить учителя</button>
+            </div>
+            
+            <div className="data-table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Учитель</th>
+                    <th>Предмет</th>
+                    <th>Класс</th>
+                    <th>Действия</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teacherSubjects.map((ts) => {
+                    const teacher = teachers.find(t => t.id === ts.teacher_id);
+                    const subject = subjects.find(s => s.id === ts.subject_id);
+                    const classItem = classes.find(c => c.id === ts.class_id);
+                    return (
+                      <tr key={ts.id}>
+                        <td>{ts.id}</td>
+                        <td>{teacher?.name || ts.teacher_id}</td>
+                        <td>{subject?.name || ts.subject_id}</td>
+                        <td>{classItem?.name || ts.class_id}</td>
+                        <td className="actions">
+                          <button className="btn-delete" onClick={() => handleRemoveTeacherSubject(ts.id)}>🗑️</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
       
+      {/* Student Modal */}
       {showStudentModal && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -593,6 +855,36 @@ function ManageStudentsPage() {
         </div>
       )}
       
+      {/* Teacher Modal */}
+      {showTeacherModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>{editingTeacher ? 'Редактировать учителя' : 'Добавить учителя'}</h2>
+            <form onSubmit={editingTeacher ? handleUpdateTeacher : handleCreateTeacher}>
+              <div className="form-group">
+                <label>Имя</label>
+                <input type="text" value={teacherForm.name} onChange={(e) => setTeacherForm({ ...teacherForm, name: e.target.value })} required />
+              </div>
+              <div className="form-group">
+                <label>Email</label>
+                <input type="email" value={teacherForm.email} onChange={(e) => setTeacherForm({ ...teacherForm, email: e.target.value })} required />
+              </div>
+              {!editingTeacher && (
+                <div className="form-group">
+                  <label>Пароль</label>
+                  <input type="password" value={teacherForm.password} onChange={(e) => setTeacherForm({ ...teacherForm, password: e.target.value })} required />
+                </div>
+              )}
+              <div className="modal-buttons">
+                <button type="button" onClick={() => setShowTeacherModal(false)}>Отмена</button>
+                <button type="submit">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      
+      {/* Class Modal */}
       {showClassModal && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -615,6 +907,30 @@ function ManageStudentsPage() {
         </div>
       )}
       
+      {/* Subject Modal */}
+      {showSubjectModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>{editingSubject ? 'Редактировать предмет' : 'Добавить предмет'}</h2>
+            <form onSubmit={editingSubject ? handleUpdateSubject : handleCreateSubject}>
+              <div className="form-group">
+                <label>Название предмета</label>
+                <input type="text" value={subjectForm.name} onChange={(e) => setSubjectForm({ ...subjectForm, name: e.target.value })} required />
+              </div>
+              <div className="form-group">
+                <label>Описание</label>
+                <textarea value={subjectForm.description} onChange={(e) => setSubjectForm({ ...subjectForm, description: e.target.value })} rows={3} />
+              </div>
+              <div className="modal-buttons">
+                <button type="button" onClick={() => setShowSubjectModal(false)}>Отмена</button>
+                <button type="submit">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      
+      {/* Assign Student Modal */}
       {showAssignModal && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -643,6 +959,7 @@ function ManageStudentsPage() {
         </div>
       )}
       
+      {/* Assign Teacher to Subject Modal */}
       {showTeacherSubjectModal && (
         <div className="modal-overlay">
           <div className="modal-content">

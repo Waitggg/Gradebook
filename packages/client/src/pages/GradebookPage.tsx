@@ -485,47 +485,44 @@ const loadStudentData = async () => {
     );
   }
   
-  return (
+return (
   <div className="gradebook">
     <h1 className="gradebook-title">Мой журнал</h1>
     
     {studentsGrades.length > 0 ? (
-      studentsGrades.map(({ student, grades }) => (
-        <div key={student.id} className="student-subject-section">
-          <h2 className="subject-title">{student.name}</h2>
-          <div className="gradebook-table-wrapper">
-            <table className="gradebook-table">
-              <thead>
-                <tr>
-                  <th className="student-column">Дата</th>
-                  {monthDates.map((date, index) => (
-                    <th key={index} className="date-column">
-                      {new Date(date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="student-cell">Оценка</td>
-                  {grades.map((gradeRecord, idx) => {
-                    const content = getCellContent(gradeRecord.grade, gradeRecord.isAbsent);
-                    
-                    return (
-                      <td
-                        key={idx}
-                        className={getCellClass(gradeRecord.grade, gradeRecord.isAbsent, false)}
-                      >
-                        {content}
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))
+      <div className="gradebook-table-wrapper">
+        <table className="gradebook-table">
+          <thead>
+            <tr>
+              <th className="subject-column">Предмет</th>
+              {monthDates.map((date, index) => (
+                <th key={index} className="date-column">
+                  {new Date(date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {studentsGrades.map(({ student, grades }) => (
+              <tr key={student.id}>
+                <td className="subject-cell">{student.name}</td>
+                {grades.map((gradeRecord, idx) => {
+                  const content = getCellContent(gradeRecord.grade, gradeRecord.isAbsent);
+                  
+                  return (
+                    <td
+                      key={idx}
+                      className={getCellClass(gradeRecord.grade, gradeRecord.isAbsent, false)}
+                    >
+                      {content}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     ) : (
       <div className="no-data">Нет данных об оценках</div>
     )}
@@ -535,7 +532,6 @@ const loadStudentData = async () => {
       </div>
     </div>
   </div>
-);
-}
+);}
 
 export default GradebookPage;

@@ -34,7 +34,12 @@ import {
   deleteStudentClass,
   getAllTeachers,
   getAllTeacherSubjects,
-  deleteTeacherSubject
+  deleteTeacherSubject,
+  createTeacher,
+  updateTeacher,
+  deleteTeacher,
+  updateSubject,
+  deleteSubject
 } from '../controllers/gradebook_controller.js';
 
 const router = Router();
@@ -43,6 +48,8 @@ router.use(authMiddleware);
 
 router.get('/subjects', getAllSubjects);
 router.post('/subjects', createSubject);
+router.put('/subjects/:id', updateSubject);
+router.delete('/subjects/:id', deleteSubject);
 
 router.get('/classes', getAllClasses);
 router.get('/myClasses', getMyClasses);
@@ -60,6 +67,9 @@ router.post('/student-classes', addStudentToClass);
 router.delete('/student-classes/:id', deleteStudentClass);
 
 router.get('/teachers', getAllTeachers);
+router.post('/teachers', createTeacher);
+router.put('/teachers/:id', updateTeacher);
+router.delete('/teachers/:id', deleteTeacher);
 
 router.get('/teacher-subjects', getAllTeacherSubjects);
 router.post('/teacher-subjects', assignTeacherToSubject);

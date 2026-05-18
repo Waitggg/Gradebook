@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../db/pool';
 import { QueryResult } from 'pg';
+import bcrypt from 'bcrypt';
 
 interface SessionWithUser {
   userId?: string;
@@ -944,6 +945,151 @@ export async function getAllStudents(req: Request, res: Response): Promise<Respo
   }
 }
 
+export async function updateSubject(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  const subjectId = req.params.id;
+  const { name, description } = req.body;
+
+  try {
+    const result: QueryResult = await pool.query(
+      `UPDATE subjects 
+       SET name = $1, description = $2 
+       WHERE id = $3 
+       RETURNING id, name, description, created_at`,
+      [name, description, subjectId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Предмет не найден' });
+    }
+    
+    return res.json({ success: true, subject: result.rows[0] });
+  } catch (error) {
+    console.error('Update subject error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка обновления предмета' });
+  }
+}
+
+export async function deleteSubject(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  const subjectId = req.params.id;
+
+  try {
+    const result: QueryResult = await pool.query(
+      'DELETE FROM subjects WHERE id = $1 RETURNING id',
+      [subjectId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Предмет не найден' });
+    }
+    
+    return res.json({ success: true, message: 'Предмет удален' });
+  } catch (error) {
+    console.error('Delete subject error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка удаления предмета' });
+  }
+}
+
+export async function createTeacher(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  const { name, email, password } = req.body;
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ success: false, message: 'Все поля обязательны' });
+  }
+
+  try {
+    const existingUser = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({ success: false, message: 'Пользователь с таким email уже существует' });
+    }
+
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    const result: QueryResult = await pool.query(
+      `INSERT INTO users (name, email, password_hash, role, created_at) 
+       VALUES ($1, $2, $3, 'teacher', DEFAULT) 
+       RETURNING id, name, email, created_at`,
+      [name, email, hashedPassword]
+    );
+    return res.status(201).json({ success: true, teacher: result.rows[0] });
+  } catch (error) {
+    console.error('Create teacher error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка создания учителя' });
+  }
+}
+export async function updateTeacher(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  const teacherId = req.params.id;
+  const { name, email } = req.body;
+
+  try {
+    const result: QueryResult = await pool.query(
+      `UPDATE users 
+       SET name = $1, email = $2 
+       WHERE id = $3 AND role = 'teacher' 
+       RETURNING id, name, email, created_at`,
+      [name, email, teacherId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Учитель не найден' });
+    }
+    
+    return res.json({ success: true, teacher: result.rows[0] });
+  } catch (error) {
+    console.error('Update teacher error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка обновления учителя' });
+  }
+}
+
+export async function deleteTeacher(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  const teacherId = req.params.id;
+
+  try {
+    const result: QueryResult = await pool.query(
+      'DELETE FROM users WHERE id = $1 AND role = $2 RETURNING id',
+      [teacherId, 'teacher']
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Учитель не найден' });
+    }
+    
+    return res.json({ success: true, message: 'Учитель удален' });
+  } catch (error) {
+    console.error('Delete teacher error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка удаления учителя' });
+  }
+}
+
 export async function createStudent(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
   if (!session.userId || session.userRole !== 'teacher') {
@@ -957,11 +1103,23 @@ export async function createStudent(req: Request, res: Response): Promise<Respon
   }
 
   try {
+    const existingUser = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({ success: false, message: 'Пользователь с таким email уже существует' });
+    }
+
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
     const result: QueryResult = await pool.query(
-      `INSERT INTO users (name, email, password, role, created_at) 
+      `INSERT INTO users (name, email, password_hash, role, created_at) 
        VALUES ($1, $2, $3, 'student', DEFAULT) 
        RETURNING id, name, email, created_at`,
-      [name, email, password]
+      [name, email, hashedPassword]
     );
     return res.status(201).json({ success: true, student: result.rows[0] });
   } catch (error) {
@@ -969,7 +1127,6 @@ export async function createStudent(req: Request, res: Response): Promise<Respon
     return res.status(500).json({ success: false, message: 'Ошибка создания студента' });
   }
 }
-
 export async function updateStudent(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
   if (!session.userId || session.userRole !== 'teacher') {

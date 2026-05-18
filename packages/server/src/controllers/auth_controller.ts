@@ -39,6 +39,13 @@ interface SessionWithUser {
 export async function createUser(req: Request<{}, {}, CreateUserBody>, res: Response): Promise<Response> {
   const { email, password, name, role = 'student' } = req.body;
 
+  if (!email || !password || !name) {
+    return res.status(400).json({
+      success: false,
+      message: 'Все поля обязательны для заполнения'
+    } as AuthResponseBody);
+  }
+
   try {
     const existingUser: QueryResult<ExistingUserRow> = await pool.query(
       'SELECT id FROM users WHERE email = $1',
@@ -52,7 +59,9 @@ export async function createUser(req: Request<{}, {}, CreateUserBody>, res: Resp
       } as AuthResponseBody);
     }
 
-    const hashedPassword: string = await bcrypt.hash(password, 10);
+    const saltRounds = 10;
+    const hashedPassword: string = await bcrypt.hash(password, saltRounds);
+    
     const result: QueryResult<UserRow> = await pool.query(
       `INSERT INTO users (email, password_hash, name, role, created_at) 
        VALUES ($1, $2, $3, $4, DEFAULT) 
@@ -90,6 +99,13 @@ export async function createUser(req: Request<{}, {}, CreateUserBody>, res: Resp
 export async function authUser(req: Request<{}, {}, AuthUserBody>, res: Response): Promise<Response> {
   const { email, password } = req.body;
 
+  if (!email || !password) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email и пароль обязательны'
+    } as AuthResponseBody);
+  }
+
   try {
     const result: QueryResult<UserRow> = await pool.query(
       'SELECT id, email, password_hash, name, role FROM users WHERE email = $1',
@@ -104,6 +120,7 @@ export async function authUser(req: Request<{}, {}, AuthUserBody>, res: Response
     }
 
     const user: UserRow = result.rows[0];
+    
     const isValid: boolean = await bcrypt.compare(password, user.password_hash);
 
     if (!isValid) {

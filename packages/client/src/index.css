@@ -148,7 +148,6 @@ code {
 .filter-select:focus {
   outline: none;
   border-color: #3b82f6;
-  ring: 2px solid #3b82f6;
 }
 
 .filter-select:disabled {
