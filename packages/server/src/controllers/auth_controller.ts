@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import pool from '../db/client';
+import pool from '../db/pool';
 import { AuthResponseBody } from '../types/auth_types.js';
 import { QueryResult } from 'pg';
 

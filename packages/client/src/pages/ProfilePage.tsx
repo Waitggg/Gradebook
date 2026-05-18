@@ -1,4 +1,3 @@
-// pages/ProfilePage.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -24,15 +23,14 @@ function ProfilePage({ onLogout }: ProfilePageProps) {
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch('/api/profile', {
-        credentials: 'include', // 👈 ВАЖНО
+      const response = await fetch('/api/auth/profile', {
+        credentials: 'include',
       });
 
       if (response.ok) {
         const data = await response.json();
         setUser(data.user);
       } else {
-        // Если не авторизован, перенаправляем на логин
         navigate('/login');
       }
     } catch (error) {
@@ -45,13 +43,13 @@ function ProfilePage({ onLogout }: ProfilePageProps) {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('/api/logout', {
+      const response = await fetch('/api/auth/logout', {
         method: 'POST',
-        credentials: 'include', // 👈 ВАЖНО
+        credentials: 'include',
       });
 
       if (response.ok) {
-        onLogout(); // Обновляем состояние в App
+        onLogout();
         navigate('/login');
       }
     } catch (error) {
