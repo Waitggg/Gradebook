@@ -501,6 +501,40 @@ export async function submitHomework(req: Request<{ id: string }, {}, HomeworkSu
   }
 }
 
+export async function getTeacherSchedule(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  try {
+    const scheduleResult: QueryResult = await pool.query(
+      `SELECT s.id, s.day_of_week, s.lesson_number, s.room,
+              sub.id as subject_id, sub.name as subject_name,
+              c.id as class_id, c.name as class_name,
+              c.year as class_year
+       FROM schedule s
+       JOIN subjects sub ON s.subject_id = sub.id
+       JOIN classes c ON s.class_id = c.id
+       WHERE s.teacher_id = $1
+       ORDER BY s.day_of_week, s.lesson_number`,
+      [session.userId]
+    );
+    
+    const lessonTimesResult: QueryResult = await pool.query(
+      'SELECT lesson_number, start_time, end_time FROM lesson_times ORDER BY lesson_number'
+    );
+    
+    return res.json({ 
+      success: true, 
+      schedule: scheduleResult.rows,
+      lesson_times: lessonTimesResult.rows
+    });
+  } catch (error) {
+    console.error('Get teacher schedule error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка получения расписания' });
+  }
+}
 export async function assignTeacherToSubject(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
   if (!session.userId || session.userRole !== 'teacher') {
@@ -692,6 +726,90 @@ export async function createScheduleItem(req: Request<{}, {}, ScheduleBody>, res
   }
 }
 
+export async function deleteAttendanceByDate(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  const { student_id, subject_id, date } = req.body;
+
+  if (!student_id || !subject_id || !date) {
+    return res.status(400).json({ success: false, message: 'Не указаны обязательные параметры' });
+  }
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM attendance WHERE student_id = $1 AND subject_id = $2 AND date::date = $3::date RETURNING id',
+      [student_id, subject_id, date]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Запись не найдена' });
+    }
+    
+    return res.json({ success: true, message: 'Запись удалена' });
+  } catch (error) {
+    console.error('Delete attendance error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка удаления' });
+  }
+}
+
+export async function deleteGradeByDate(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  const { student_id, subject_id, grade_date } = req.body;
+
+  if (!student_id || !subject_id || !grade_date) {
+    return res.status(400).json({ success: false, message: 'Не указаны обязательные параметры' });
+  }
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM grades WHERE student_id = $1 AND subject_id = $2 AND grade_date::date = $3::date RETURNING id',
+      [student_id, subject_id, grade_date]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Оценка не найдена' });
+    }
+    
+    return res.json({ success: true, message: 'Оценка удалена' });
+  } catch (error) {
+    console.error('Delete grade error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка удаления оценки' });
+  }
+}
+
+export async function deleteScheduleItem(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  const scheduleId = req.params.id;
+
+  try {
+    const result: QueryResult = await pool.query(
+      'DELETE FROM schedule WHERE id = $1 RETURNING id',
+      [scheduleId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Запись не найдена' });
+    }
+    
+    return res.json({ success: true, message: 'Запись удалена' });
+  } catch (error) {
+    console.error('Delete schedule error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка удаления' });
+  }
+}
+
+
 export async function getClassSchedule(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
   if (!session.userId) {
@@ -701,7 +819,7 @@ export async function getClassSchedule(req: Request, res: Response): Promise<Res
   const classId = req.params.classId;
 
   try {
-    const result: QueryResult = await pool.query(
+    const scheduleResult: QueryResult = await pool.query(
       `SELECT s.id, s.day_of_week, s.lesson_number, s.room,
               sub.id as subject_id, sub.name as subject_name,
               u.id as teacher_id, u.name as teacher_name
@@ -712,8 +830,15 @@ export async function getClassSchedule(req: Request, res: Response): Promise<Res
        ORDER BY s.day_of_week, s.lesson_number`,
       [classId]
     );
-    return res.json({ success: true, schedule: result.rows });
-  } catch (error) {
+    const lessonTimesResult: QueryResult = await pool.query(
+      'SELECT lesson_number, start_time, end_time FROM lesson_times ORDER BY lesson_number'
+    );
+    
+    return res.json({ 
+      success: true, 
+      schedule: scheduleResult.rows,
+      lesson_times: lessonTimesResult.rows
+    });  } catch (error) {
     console.error('Get schedule error:', error);
     return res.status(500).json({ success: false, message: 'Ошибка получения расписания' });
   }
@@ -855,7 +980,8 @@ export async function getAttendanceBySubject(req: Request, res: Response): Promi
       query = `
         SELECT id, 
                to_char(date, 'YYYY-MM-DD') as date,
-               status
+               status,
+                to_char(created_at, 'HH24:MI:SS') as created_time
         FROM attendance
         WHERE subject_id = $1 AND student_id = $2
         ORDER BY date DESC

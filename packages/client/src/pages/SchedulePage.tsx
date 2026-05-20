@@ -26,6 +26,8 @@ interface ScheduleItem {
   subject_name: string;
   teacher_id: number;
   teacher_name: string;
+  class_id: number;
+  class_name: string;
   room: string | null;
 }
 
@@ -68,6 +70,7 @@ function SchedulePage() {
     subject_id: 0,
     lesson_number: 1,
     day_of_week: 1,
+    class_id: 0,
     room: ''
   });
 
@@ -76,38 +79,85 @@ function SchedulePage() {
   }, []);
 
   useEffect(() => {
-    if (selectedClass) {
-      loadSchedule();
+    if (userRole === 'student' && selectedClass) {
+      loadStudentSchedule();
     }
-  }, [selectedClass]);
+  }, [selectedClass, userRole]);
 
-const checkAuth = async () => {
+  const checkAuth = async () => {
+    try {
+      const response = await fetch('/api/auth/profile', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        const role = data.user.role;
+        setUserRole(role);
+        
+        if (role === 'teacher') {
+          await loadTeacherSchedule();
+          await loadSubjects();
+          await loadTeacherClasses();
+        } else {
+          await loadStudentClasses();
+          await loadStudentSubjects();
+        }
+        await loadLessonTimes();
+      } else {
+        navigate('/login');
+      }
+    } catch (error) {
+      console.error('Auth error:', error);
+      navigate('/login');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTeacherSchedule = async () => {
+    try {
+      const response = await fetch('/api/gradebook/teacher/schedule', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setSchedule(data.schedule || []);
+      }
+    } catch (error) {
+      console.error('Load teacher schedule error:', error);
+    }
+  };
+
+const loadStudentSchedule = async () => {
+  if (!selectedClass) return;
   try {
-    const response = await fetch('/api/auth/profile', { credentials: 'include' });
+    const response = await fetch(`/api/gradebook/schedule/class/${selectedClass}`, { credentials: 'include' });
     if (response.ok) {
       const data = await response.json();
-      const role = data.user.role;
-      setUserRole(role);
-      
-      await loadClasses();
-      await loadSubjects();
-      await loadLessonTimes();
-    } else {
-      navigate('/login');
+      setSchedule(data.schedule || []);
+      if (data.lesson_times && data.lesson_times.length > 0) {
+        setLessonTimes(data.lesson_times);
+      }
     }
   } catch (error) {
-    console.error('Auth error:', error);
-    navigate('/login');
-  } finally {
-    setLoading(false);
+    console.error('Load student schedule error:', error);
   }
 };
-
-  const loadClasses = async () => {
+  const loadTeacherClasses = async () => {
     try {
-      const url = '/api/gradebook/classes';
+      const response = await fetch('/api/gradebook/myClasses', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        const classesList: ApiClassResponse[] = data.classes || [];
+        const uniqueClasses: Class[] = Array.from(
+          new Map(classesList.map((c: ApiClassResponse) => [c.id, { id: c.id, name: c.name, year: c.year }])).values()
+        );
+        setClasses(uniqueClasses);
+      }
+    } catch (error) {
+      console.error('Load teacher classes error:', error);
+    }
+  };
 
-      const response = await fetch(url, { credentials: 'include' });
+  const loadStudentClasses = async () => {
+    try {
+      const response = await fetch('/api/gradebook/myClasses', { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         const classesList: ApiClassResponse[] = data.classes || [];
@@ -120,15 +170,13 @@ const checkAuth = async () => {
         }
       }
     } catch (error) {
-      console.error('Load classes error:', error);
+      console.error('Load student classes error:', error);
     }
   };
 
   const loadSubjects = async () => {
     try {
-      const url = '/api/gradebook/subjects';
-      
-      const response = await fetch(url, { credentials: 'include' });
+      const response = await fetch('/api/gradebook/subjects', { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         const subjectsList: ApiSubjectResponse[] = data.subjects || [];
@@ -142,69 +190,74 @@ const checkAuth = async () => {
     }
   };
 
-const loadSchedule = async () => {
-  if (!selectedClass) return;
-  try {
-    const response = await fetch(`/api/gradebook/schedule/class/${selectedClass}`, { credentials: 'include' });
-    if (response.ok) {
-      const data = await response.json();
-      setSchedule(data.schedule || []);
-      setLessonTimes(data.lesson_times || []);
+  const loadStudentSubjects = async () => {
+    try {
+      const response = await fetch('/api/gradebook/my-subjects', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        const subjectsList: ApiSubjectResponse[] = data.subjects || [];
+        const uniqueSubjects: Subject[] = Array.from(
+          new Map(subjectsList.map((s: ApiSubjectResponse) => [s.id, { id: s.id, name: s.name }])).values()
+        );
+        setSubjects(uniqueSubjects);
+      }
+    } catch (error) {
+      console.error('Load student subjects error:', error);
     }
-  } catch (error) {
-    console.error('Load schedule error:', error);
-  }
-};
+  };
 
-const loadLessonTimes = async () => {
-  try {
-    const response = await fetch('/api/schedule/lesson-times', { credentials: 'include' });
-    if (response.ok) {
-      const data = await response.json();
-      setLessonTimes(data.lesson_times || []);
+  const loadLessonTimes = async () => {
+    try {
+      const response = await fetch('/api/schedule/lesson-times', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setLessonTimes(data.lesson_times || []);
+      }
+    } catch (error) {
+      console.error('Load lesson times error:', error);
     }
-  } catch (error) {
-    console.error('Load lesson times error:', error);
-  }
-};
+  };
 
-const handleAddSchedule = async (e: React.FormEvent) => {
-  e.preventDefault();
-  try {
-    const response = await fetch('/api/gradebook/schedule', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        class_id: selectedClass,
-        ...formData
-      }),
-      credentials: 'include'
-    });
-    
-    if (response.ok) {
-      setShowAddModal(false);
-      setFormData({ subject_id: 0, lesson_number: 1, day_of_week: 1, room: '' });
-      loadSchedule();
-    } else {
-      const error = await response.json();
-      alert(error.message || 'Ошибка добавления');
+  const handleAddSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await fetch('/api/gradebook/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData
+        }),
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        setShowAddModal(false);
+        setFormData({ subject_id: 0, lesson_number: 1, day_of_week: 1, class_id: 0, room: '' });
+        loadTeacherSchedule();
+      } else {
+        const error = await response.json();
+        alert(error.message || 'Ошибка добавления');
+      }
+    } catch (error) {
+      console.error('Add schedule error:', error);
+      alert('Ошибка добавления');
     }
-  } catch (error) {
-    console.error('Add schedule error:', error);
-    alert('Ошибка добавления');
-  }
-};
+  };
 
   const handleDeleteSchedule = async (id: number) => {
     if (!confirm('Удалить этот урок из расписания?')) return;
     try {
-      const response = await fetch(`/api/schedule/${id}`, {
+      const response = await fetch(`/api/gradebook/schedule/${id}`, {
         method: 'DELETE',
         credentials: 'include'
       });
       
       if (response.ok) {
-        loadSchedule();
+        if (userRole === 'teacher') {
+          loadTeacherSchedule();
+        } else {
+          loadStudentSchedule();
+        }
       } else {
         alert('Ошибка удаления');
       }
@@ -228,65 +281,89 @@ const handleAddSchedule = async (e: React.FormEvent) => {
     return <div className="loading">Загрузка...</div>;
   }
 
+  // Общий компонент расписания для обоих типов пользователей
+  const ScheduleContent = ({ showDeleteButton = false }: { showDeleteButton?: boolean }) => (
+    <div className="schedule-grid">
+      {daysOfWeek.map(day => (
+        <div key={day.value} className="schedule-day">
+          <h2 className="day-title">{day.name}</h2>
+          <div className="schedule-lessons">
+            {getScheduleForDay(day.value).map((item) => (
+              <div key={item.id} className="schedule-lesson">
+                <div className="lesson-time">{getLessonTime(item.lesson_number)}</div>
+                <div className="lesson-subject">{item.subject_name}</div>
+                {showDeleteButton && (
+                  <div className="lesson-class">Класс: {item.class_name}</div>
+                )}
+                {!showDeleteButton && (
+                  <div className="lesson-teacher">{item.teacher_name}</div>
+                )}
+                <div className="lesson-room">Кабинет: {item.room || '—'}</div>
+                {showDeleteButton && (
+                  <button 
+                    className="btn-delete-lesson"
+                    onClick={() => handleDeleteSchedule(item.id)}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            {getScheduleForDay(day.value).length === 0 && (
+              <div className="no-lessons">Нет уроков</div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="schedule-container">
-      <h1 className="page-title">Расписание занятий</h1>
+      <h1 className="page-title">
+        {userRole === 'teacher' ? 'Мое расписание' : 'Расписание занятий'}
+      </h1>
       
-      <div className="class-selector">
-        <label className="filter-label">Выберите класс</label>
-        <select
-          className="filter-select"
-          value={selectedClass || ''}
-          onChange={(e) => setSelectedClass(Number(e.target.value))}
-        >
-          {classes.map((classItem) => (
-            <option key={classItem.id} value={classItem.id}>
-              {classItem.name} (выпуск {classItem.year})
-            </option>
-          ))}
-        </select>
-      </div>
-      
-      {userRole === 'teacher' && (
+      {userRole === 'teacher' ? (
         <button className="btn-primary add-btn" onClick={() => setShowAddModal(true)}>
           + Добавить урок
         </button>
+      ) : (
+        <div className="class-selector">
+          <label className="filter-label">Мой класс</label>
+          <div className="current-class">
+            {classes.length > 0 ? (
+              <span className="class-name">{classes[0]?.name} (выпуск {classes[0]?.year})</span>
+            ) : (
+              <span className="no-class">Класс не назначен</span>
+            )}
+          </div>
+        </div>
       )}
       
-      <div className="schedule-grid">
-        {daysOfWeek.map(day => (
-          <div key={day.value} className="schedule-day">
-            <h2 className="day-title">{day.name}</h2>
-            <div className="schedule-lessons">
-              {getScheduleForDay(day.value).map((item) => (
-                <div key={item.id} className="schedule-lesson">
-                  <div className="lesson-time">{getLessonTime(item.lesson_number)}</div>
-                  <div className="lesson-subject">{item.subject_name}</div>
-                  <div className="lesson-teacher">{item.teacher_name}</div>
-                  <div className="lesson-room">Кабинет: {item.room || '—'}</div>
-                  {userRole === 'teacher' && (
-                    <button 
-                      className="btn-delete-lesson"
-                      onClick={() => handleDeleteSchedule(item.id)}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              ))}
-              {getScheduleForDay(day.value).length === 0 && (
-                <div className="no-lessons">Нет уроков</div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+      <ScheduleContent showDeleteButton={userRole === 'teacher'} />
       
       {showAddModal && (
         <div className="modal-overlay">
           <div className="modal-content">
             <h2>Добавить урок в расписание</h2>
             <form onSubmit={handleAddSchedule}>
+              <div className="form-group">
+                <label>Класс</label>
+                <select
+                  value={formData.class_id}
+                  onChange={(e) => setFormData({ ...formData, class_id: parseInt(e.target.value) })}
+                  required
+                >
+                  <option value="">Выберите класс</option>
+                  {classes.map(classItem => (
+                    <option key={classItem.id} value={classItem.id}>
+                      {classItem.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
               <div className="form-group">
                 <label>День недели</label>
                 <select
@@ -351,8 +428,15 @@ const handleAddSchedule = async (e: React.FormEvent) => {
       <style>{`
         .schedule-container {
           padding: 24px;
-          max-width: 1400px;
+          max-width: 90%;
           margin: 0 auto;
+        }
+        
+        .page-title {
+          font-size: 24px;
+          font-weight: 600;
+          color: #aeb3b9;
+          margin-bottom: 24px;
         }
         
         .class-selector {
@@ -360,13 +444,50 @@ const handleAddSchedule = async (e: React.FormEvent) => {
           max-width: 300px;
         }
         
+        .filter-label {
+          display: block;
+          font-size: 14px;
+          font-weight: 500;
+          color: #374151;
+          margin-bottom: 6px;
+        }
+        
+        .current-class {
+          padding: 8px 12px;
+          background: #f3f4f6;
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+        }
+        
+        .class-name {
+          font-weight: 500;
+          color: #1f2937;
+        }
+        
+        .no-class {
+          color: #9ca3af;
+        }
+        
         .add-btn {
           margin-bottom: 24px;
         }
         
+        .btn-primary {
+          background-color: #3b82f6;
+          color: white;
+          padding: 8px 16px;
+          border-radius: 8px;
+          border: none;
+          cursor: pointer;
+          font-size: 14px;
+        }
+        
+        .btn-primary:hover {
+          background-color: #2563eb;
+        }
+        
         .schedule-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          display: flex;
           gap: 20px;
         }
         
@@ -411,6 +532,7 @@ const handleAddSchedule = async (e: React.FormEvent) => {
           margin-bottom: 4px;
         }
         
+        .lesson-class,
         .lesson-teacher {
           font-size: 12px;
           color: #4b5563;
@@ -447,10 +569,78 @@ const handleAddSchedule = async (e: React.FormEvent) => {
           font-size: 14px;
         }
         
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+        }
+        
+        .modal-content {
+          background: white;
+          border-radius: 12px;
+          padding: 24px;
+          width: 400px;
+          max-width: 90%;
+        }
+        
+        .modal-content h2 {
+          font-size: 20px;
+          margin-bottom: 20px;
+        }
+        
+        .form-group {
+          margin-bottom: 16px;
+        }
+        
+        .form-group label {
+          display: block;
+          font-size: 14px;
+          font-weight: 500;
+          color: #374151;
+          margin-bottom: 6px;
+        }
+        
+        .form-group select,
+        .form-group input {
+          width: 100%;
+          padding: 8px 12px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          font-size: 14px;
+        }
+        
+        .modal-buttons {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          margin-top: 20px;
+        }
+        
+        .modal-buttons button {
+          padding: 8px 16px;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+        
+        .modal-buttons button:first-child {
+          background: white;
+          border: 1px solid #d1d5db;
+        }
+        
+        .modal-buttons button:last-child {
+          background: #3b82f6;
+          color: white;
+          border: none;
+        }
+        
         @media (max-width: 768px) {
-          .schedule-container {
-            padding: 16px;
-          }
           
           .schedule-grid {
             grid-template-columns: 1fr;

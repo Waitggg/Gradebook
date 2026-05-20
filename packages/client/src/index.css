@@ -1,11 +1,11 @@
 :root {
   --text: #6b6375;
-  --text-h: #08060d;
+  --text-h: #afafaf;
   --bg: #fff;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
   --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
+  --accent-bg: rgba(138, 138, 138, 0.1);
   --accent-border: rgba(170, 59, 255, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
@@ -24,6 +24,7 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  margin: 0;
 
   @media (max-width: 1024px) {
     font-size: 16px;
@@ -34,7 +35,7 @@
   :root {
     --text: #9ca3af;
     --text-h: #f3f4f6;
-    --bg: #16171d;
+    --bg: #e6e6e6;
     --border: #2e303a;
     --code-bg: #1f2028;
     --accent: #c084fc;
@@ -51,7 +52,7 @@
 }
 
 #root {
-  width: 1126px;
+  width: 90%;
   max-width: 100%;
   margin: 0 auto;
   text-align: center;
@@ -109,8 +110,6 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
-
-/* packages/client/src/index.css - добавьте эти стили */
 
 .filters {
   display: flex;
@@ -200,4 +199,26 @@ code {
   .date-column {
     min-width: 55px;
   }
+}
+
+.column-hover {
+  background-color: rgba(151, 151, 151, 0.1) !important;
+  transition: background 0.2s ease;
+}
+
+.gradebook-table tbody tr:hover td {
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.gradebook-table tbody tr:hover .student-cell {
+  background-color: rgba(126, 152, 194, 0.1);
+}
+
+.gradebook-table td {
+  transition: background 0.2s ease;
+}
+
+.grade-cell:hover {
+  filter: brightness(0.97);
+  transform: scale(1.02);
 }

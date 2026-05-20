@@ -44,18 +44,15 @@ export async function getClassSchedule(req: Request, res: Response): Promise<Res
        ORDER BY s.day_of_week, s.lesson_number`,
       [classId]
     );
-
-    // Получаем время уроков
     const lessonTimesResult: QueryResult = await pool.query(
       'SELECT lesson_number, start_time, end_time FROM lesson_times ORDER BY lesson_number'
     );
-
+    
     return res.json({ 
       success: true, 
       schedule: scheduleResult.rows,
       lesson_times: lessonTimesResult.rows
-    });
-  } catch (error) {
+    });  } catch (error) {
     console.error('Get schedule error:', error);
     return res.status(500).json({ success: false, message: 'Ошибка получения расписания' });
   }
@@ -80,6 +77,74 @@ export async function getAllClassesSchedule(req: Request, res: Response): Promis
   }
 }
 
+export async function getAllSubjectsForTeacher(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  try {
+    const result: QueryResult = await pool.query(
+      'SELECT id, name, description FROM subjects ORDER BY name'
+    );
+    return res.json({ success: true, subjects: result.rows });
+  } catch (error) {
+    console.error('Get all subjects error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка получения предметов' });
+  }
+}
+
+export async function getAllClassesForTeacher(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  try {
+    const result: QueryResult = await pool.query(
+      'SELECT id, name, year FROM classes ORDER BY year DESC, name'
+    );
+    return res.json({ success: true, classes: result.rows });
+  } catch (error) {
+    console.error('Get all classes error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка получения классов' });
+  }
+}
+
+export async function getTeacherSchedule(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  try {
+    const scheduleResult: QueryResult = await pool.query(
+      `SELECT s.id, s.day_of_week, s.lesson_number, s.room,
+              sub.id as subject_id, sub.name as subject_name,
+              c.id as class_id, c.name as class_name,
+              c.year as class_year
+       FROM schedule s
+       JOIN subjects sub ON s.subject_id = sub.id
+       JOIN classes c ON s.class_id = c.id
+       WHERE s.teacher_id = $1
+       ORDER BY s.day_of_week, s.lesson_number`,
+      [session.userId]
+    );
+    
+    const lessonTimesResult: QueryResult = await pool.query(
+      'SELECT lesson_number, start_time, end_time FROM lesson_times ORDER BY lesson_number'
+    );
+    
+    return res.json({ 
+      success: true, 
+      schedule: scheduleResult.rows,
+      lesson_times: lessonTimesResult.rows
+    });
+  } catch (error) {
+    console.error('Get teacher schedule error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка получения расписания' });
+  }
+}
 export async function createScheduleItem(req: Request<{}, {}, ScheduleBody>, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
   if (!session.userId || session.userRole !== 'teacher') {

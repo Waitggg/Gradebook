@@ -73,6 +73,7 @@ function App() {
             <SchedulePage /> : 
             <Navigate to="/login" replace />
         } />
+        
       </Routes>
     </BrowserRouter>
   );
