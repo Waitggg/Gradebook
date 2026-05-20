@@ -1,10 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import Header from './components/Header';
 import LoginPage from './pages/LoginPage';
-import ManageStudentsPage from './pages/ManageStudentsPage';
 import ProfilePage from './pages/ProfilePage';
 import GradebookPage from './pages/GradebookPage';
 import SchedulePage from './pages/SchedulePage';
+import ManageStudentsPage from './pages/ManageStudentsPage';
 
 function App() {
   const [isAuth, setIsAuth] = useState<boolean>(false);
@@ -19,11 +20,7 @@ function App() {
       const response = await fetch('/api/auth/profile', {
         credentials: 'include'
       });
-      if (response.ok) {
-        setIsAuth(true);
-      } else {
-        setIsAuth(false);
-      }
+      setIsAuth(response.ok);
     } catch (error) {
       setIsAuth(false);
     } finally {
@@ -40,11 +37,12 @@ function App() {
   };
 
   if (loading) {
-    return <div>Загрузка...</div>;
+    return <div className="loading">Загрузка...</div>;
   }
 
   return (
     <BrowserRouter>
+      {isAuth && <Header />}
       <Routes>
         <Route path="/login" element={
           isAuth ? <Navigate to="/profile" /> : <LoginPage onLogin={handleLogin} />
@@ -55,25 +53,24 @@ function App() {
             <ProfilePage onLogout={handleLogout} /> : 
             <Navigate to="/login" replace />
         } />
-
+        
         <Route path="/gradebook" element={
           isAuth ? 
             <GradebookPage /> : 
             <Navigate to="/login" replace />
         } />
-
-          <Route path="/managestudents" element={
-          isAuth ? 
-            <ManageStudentsPage /> : 
-            <Navigate to="/login" replace />
-        } />
-
+        
         <Route path="/schedule" element={
           isAuth ? 
             <SchedulePage /> : 
             <Navigate to="/login" replace />
         } />
         
+        <Route path="/manage-students" element={
+          isAuth ? 
+            <ManageStudentsPage /> : 
+            <Navigate to="/login" replace />
+        } />
       </Routes>
     </BrowserRouter>
   );

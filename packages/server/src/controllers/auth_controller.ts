@@ -31,6 +31,7 @@ interface ExistingUserRow {
 
 interface SessionWithUser {
   userId?: string;
+  userName?: string;
   userEmail?: string;
   userRole?: 'teacher' | 'student';
   destroy: (callback: (err: Error | null) => void) => void;
@@ -73,6 +74,7 @@ export async function createUser(req: Request<{}, {}, CreateUserBody>, res: Resp
 
     const session = req.session as SessionWithUser;
     session.userId = newUser.id;
+    session.userName = newUser.name;
     session.userEmail = newUser.email;
     session.userRole = newUser.role;
 
@@ -132,6 +134,7 @@ export async function authUser(req: Request<{}, {}, AuthUserBody>, res: Response
 
     const session = req.session as SessionWithUser;
     session.userId = user.id;
+    session.userName = user.name;
     session.userEmail = user.email;
     session.userRole = user.role;
 
@@ -190,6 +193,7 @@ export async function getCurrentUser(req: Request, res: Response): Promise<Respo
     success: true,
     user: {
       id: session.userId,
+      name: session.userName,
       email: session.userEmail,
       role: session.userRole
     }

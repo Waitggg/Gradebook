@@ -685,240 +685,253 @@ const loadStudentData = async () => {
           </div>
         </div>
         
-        <style>{`
-          .gradebook {
-            padding: 24px;
-            max-width: 1400px;
-            margin: 0 auto;
-          }
-          
-          .gradebook-title {
-            font-size: 24px;
-            font-weight: 600;
-            color: #1f2937;
-            margin-bottom: 24px;
-          }
-          
-          .filters {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-          }
-          
-          .filter-group {
-            flex: 1;
-            min-width: 200px;
-          }
-          
-          .filter-label {
-            display: block;
-            font-size: 14px;
-            font-weight: 500;
-            color: #374151;
-            margin-bottom: 6px;
-          }
-          
-          .filter-select {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 14px;
-            background: white;
-          }
-          
-          .gradebook-table-wrapper {
-            overflow-x: auto;
-            border-radius: 12px;
-            border: 1px solid #e5e7eb;
-          }
-          
-          .gradebook-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-            min-width: 600px;
-          }
-          
-          .gradebook-table th {
-            background: #f3f4f6;
-            padding: 12px 8px;
-            text-align: center;
-            font-weight: 600;
-            color: #374151;
-            border-bottom: 1px solid #e5e7eb;
-            position: sticky;
-            top: 0;
-          }
-          
-          .gradebook-table td {
-            padding: 8px;
-            text-align: center;
-            border-bottom: 1px solid #f0f0f0;
-          }
-          
-          .student-column, .subject-column {
-            position: sticky;
-            left: 0;
-            background: white;
-            font-weight: 500;
-            text-align: left;
-            min-width: 150px;
-          }
-          
-          .student-cell, .subject-cell {
-            background: white;
-            font-weight: 500;
-            text-align: left;
-            border-right: 1px solid #e5e7eb;
-          }
-          
-          .date-column {
-            min-width: 60px;
-          }
-          
-          .grade-cell {
-            cursor: pointer;
-            transition: background 0.2s;
-            font-weight: 500;
-            pointer-events: auto;
-          }
-          
-          .grade-cell:hover {
-            background: #f3f4f6;
-          }
-          
-          .grade-cell.editing {
-            padding: 0;
-          }
-          
-          .grade-cell.excellent {
-            background: #dcfce7;
-            color: #166534;
-          }
-          
-          .grade-cell.good {
-            background: #dbeafe;
-            color: #1e40af;
-          }
-          
-          .grade-cell.satisfactory {
-            background: #fef3c7;
-            color: #92400e;
-          }
-          
-          .grade-cell.poor {
-            background: #fee2e2;
-            color: #991b1b;
-          }
-          
-          .grade-cell.absent {
-            background: #f3f4f6;
-            color: #6b7280;
-          }
-          
-          .grade-cell.late {
-            background: #fed7aa;
-            color: #c2410c;
-          }
-          
-          .grade-cell.empty {
-            background: white;
-            color: #9ca3af;
-          }
-          
-          .grade-input {
-            width: 50px;
-            padding: 8px;
-            text-align: center;
-            border: 2px solid #3b82f6;
-            border-radius: 6px;
-            font-size: 14px;
-            outline: none;
-          }
-          
-          .gradebook-footer {
-            margin-top: 24px;
-            padding-top: 16px;
-            border-top: 1px solid #e5e7eb;
-          }
-          
-          .legend {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            flex-wrap: wrap;
-          }
-          
-          .legend-title {
-            font-size: 14px;
-            color: #6b7280;
-          }
-          
-          .legend-items {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-          }
-          
-          .legend-items span {
-            font-size: 12px;
-            padding: 4px 8px;
-            border-radius: 4px;
-          }
-          
-          .legend-excellent { background: #dcfce7; color: #166534; }
-          .legend-good { background: #dbeafe; color: #1e40af; }
-          .legend-satisfactory { background: #fef3c7; color: #92400e; }
-          .legend-poor { background: #fee2e2; color: #991b1b; }
-          .legend-absent { background: #f3f4f6; color: #6b7280; }
-          .legend-late { background: #fed7aa; color: #c2410c; }
-          .legend-empty { background: white; color: #9ca3af; border: 1px solid #e5e7eb; }
-          
-          .hint {
-            margin-top: 16px;
-            font-size: 12px;
-            color: #9ca3af;
-            text-align: center;
-          }
-          
-          .no-data {
-            text-align: center;
-            padding: 48px;
-            color: #9ca3af;
-            background: white;
-            border-radius: 12px;
-          }
-          
-          .loading {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 200px;
-            font-size: 16px;
-            color: #6b7280;
-          }
-          
-          @media (max-width: 768px) {
-            .gradebook {
-              padding: 16px;
-            }
-            
-            .filters {
-              flex-direction: column;
-              gap: 12px;
-            }
-            
-            .student-column, .subject-column {
-              min-width: 120px;
-            }
-            
-            .date-column {
-              min-width: 50px;
-            }
-          }
-        `}</style>
+      <style>{`
+  .gradebook {
+    padding: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  .gradebook-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 24px;
+  }
+  
+  .filters {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  
+  .filter-group {
+    flex: 1;
+    min-width: 200px;
+  }
+  
+  .filter-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 6px;
+  }
+  
+  .filter-select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    color: #1f2937;
+  }
+  
+  .filter-select option {
+    background: white;
+    color: #1f2937;
+  }
+  
+  .filter-select:disabled {
+    background: #f9fafb;
+    color: #9ca3af;
+  }
+  
+  .gradebook-table-wrapper {
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+  }
+  
+  .gradebook-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    min-width: 600px;
+  }
+  
+  .gradebook-table th {
+    background: #f3f4f6;
+    padding: 12px 8px;
+    text-align: center;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 1px solid #e5e7eb;
+    position: sticky;
+    top: 0;
+  }
+  
+  .gradebook-table td {
+    padding: 8px;
+    text-align: center;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .student-column, .subject-column {
+    position: sticky;
+    left: 0;
+    background: white;
+    font-weight: 500;
+    text-align: left;
+    min-width: 150px;
+  }
+  
+  .student-cell, .subject-cell {
+    background: white;
+    font-weight: 500;
+    text-align: left;
+    border-right: 1px solid #e5e7eb;
+  }
+  
+  .date-column {
+    min-width: 60px;
+  }
+  
+  .grade-cell {
+    cursor: pointer;
+    transition: background 0.2s;
+    font-weight: 500;
+    pointer-events: auto;
+  }
+  
+  .grade-cell:hover {
+    background: #f3f4f6;
+  }
+  
+  .grade-cell.editing {
+    padding: 0;
+  }
+  
+  .grade-cell.excellent {
+    background: #dcfce7;
+    color: #166534;
+  }
+  
+  .grade-cell.good {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+  
+  .grade-cell.satisfactory {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  
+  .grade-cell.poor {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  
+  .grade-cell.absent {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+  
+  .grade-cell.late {
+    background: #fed7aa;
+    color: #c2410c;
+  }
+  
+  .grade-cell.empty {
+    background: white;
+    color: #9ca3af;
+  }
+  
+  .grade-input {
+    width: 50px;
+    padding: 8px;
+    text-align: center;
+    border: 2px solid #3b82f6;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    background: white;
+    color: #1f2937;
+  }
+  
+  .gradebook-footer {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+  }
+  
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  
+  .legend-title {
+    font-size: 14px;
+    color: #6b7280;
+  }
+  
+  .legend-items {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  
+  .legend-items span {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  
+  .legend-excellent { background: #dcfce7; color: #166534; }
+  .legend-good { background: #dbeafe; color: #1e40af; }
+  .legend-satisfactory { background: #fef3c7; color: #92400e; }
+  .legend-poor { background: #fee2e2; color: #991b1b; }
+  .legend-absent { background: #f3f4f6; color: #6b7280; }
+  .legend-late { background: #fed7aa; color: #c2410c; }
+  .legend-empty { background: white; color: #9ca3af; border: 1px solid #e5e7eb; }
+  
+  .hint {
+    margin-top: 16px;
+    font-size: 12px;
+    color: #9ca3af;
+    text-align: center;
+  }
+  
+  .no-data {
+    text-align: center;
+    padding: 48px;
+    color: #9ca3af;
+    background: white;
+    border-radius: 12px;
+  }
+  
+  .loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+    font-size: 16px;
+    color: #6b7280;
+  }
+  
+  @media (max-width: 768px) {
+    .gradebook {
+      padding: 16px;
+    }
+    
+    .filters {
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .student-column, .subject-column {
+      min-width: 120px;
+    }
+    
+    .date-column {
+      min-width: 50px;
+    }
+  }
+`}</style>
       </div>
     );
   }
@@ -980,174 +993,253 @@ const loadStudentData = async () => {
         </div>
       </div>
       
-      <style>{` 
-        .gradebook {
-          padding: 24px;
-          max-width: 1400px;
-          margin: 0 auto;
-        }
-        
-        .gradebook-title {
-          font-size: 24px;
-          font-weight: 600;
-          color: #1f2937;
-          margin-bottom: 24px;
-        }
-        
-        .gradebook-table-wrapper {
-          overflow-x: auto;
-          border-radius: 12px;
-          border: 1px solid #e5e7eb;
-        }
-        
-        .gradebook-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 14px;
-          min-width: 600px;
-        }
-        
-        .gradebook-table th {
-          background: #f3f4f6;
-          padding: 12px 8px;
-          text-align: center;
-          font-weight: 600;
-          color: #374151;
-          border-bottom: 1px solid #e5e7eb;
-          position: sticky;
-          top: 0;
-        }
-        
-        .gradebook-table td {
-          padding: 8px;
-          text-align: center;
-          border-bottom: 1px solid #f0f0f0;
-        }
-        
-        .subject-column {
-          position: sticky;
-          left: 0;
-          background: #f3f4f6;
-          font-weight: 500;
-          text-align: left;
-          min-width: 150px;
-        }
-        
-        .subject-cell {
-          background: white;
-          font-weight: 500;
-          text-align: left;
-          border-right: 1px solid #e5e7eb;
-        }
-        
-        .date-column {
-          min-width: 60px;
-        }
-        
-        .grade-cell.excellent {
-          background: #dcfce7;
-          color: #166534;
-        }
-        
-        .grade-cell.good {
-          background: #dbeafe;
-          color: #1e40af;
-        }
-        
-        .grade-cell.satisfactory {
-          background: #fef3c7;
-          color: #92400e;
-        }
-        
-        .grade-cell.poor {
-          background: #fee2e2;
-          color: #991b1b;
-        }
-        
-        .grade-cell.absent {
-          background: #f3f4f6;
-          color: #6b7280;
-        }
-        
-        .grade-cell.late {
-          background: #fed7aa;
-          color: #c2410c;
-        }
-        
-        .grade-cell.empty {
-          background: white;
-          color: #9ca3af;
-        }
-        
-        .gradebook-footer {
-          margin-top: 24px;
-          padding-top: 16px;
-          border-top: 1px solid #e5e7eb;
-        }
-        
-        .legend {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          flex-wrap: wrap;
-        }
-        
-        .legend-title {
-          font-size: 14px;
-          color: #6b7280;
-        }
-        
-        .legend-items {
-          display: flex;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-        
-        .legend-items span {
-          font-size: 12px;
-          padding: 4px 8px;
-          border-radius: 4px;
-        }
-        
-        .legend-excellent { background: #dcfce7; color: #166534; }
-        .legend-good { background: #dbeafe; color: #1e40af; }
-        .legend-satisfactory { background: #fef3c7; color: #92400e; }
-        .legend-poor { background: #fee2e2; color: #991b1b; }
-        .legend-absent { background: #f3f4f6; color: #6b7280; }
-        .legend-late { background: #fed7aa; color: #c2410c; }
-        .legend-empty { background: white; color: #9ca3af; border: 1px solid #e5e7eb; }
-        
-        .no-data {
-          text-align: center;
-          padding: 48px;
-          color: #9ca3af;
-          background: white;
-          border-radius: 12px;
-        }
-        
-        .loading {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          height: 200px;
-          font-size: 16px;
-          color: #6b7280;
-        }
-        
-        @media (max-width: 768px) {
-          .gradebook {
-            padding: 16px;
-          }
-          
-          .subject-column {
-            min-width: 120px;
-          }
-          
-          .date-column {
-            min-width: 50px;
-          }
-        }
-      `}</style>
+      <style>{`
+  .gradebook {
+    padding: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  .gradebook-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 24px;
+  }
+  
+  .filters {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  
+  .filter-group {
+    flex: 1;
+    min-width: 200px;
+  }
+  
+  .filter-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 6px;
+  }
+  
+  .filter-select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    color: #1f2937;
+  }
+  
+  .filter-select option {
+    background: white;
+    color: #1f2937;
+  }
+  
+  .filter-select:disabled {
+    background: #f9fafb;
+    color: #9ca3af;
+  }
+  
+  .gradebook-table-wrapper {
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+  }
+  
+  .gradebook-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    min-width: 600px;
+  }
+  
+  .gradebook-table th {
+    background: #f3f4f6;
+    padding: 12px 8px;
+    text-align: center;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 1px solid #e5e7eb;
+    position: sticky;
+    top: 0;
+  }
+  
+  .gradebook-table td {
+    padding: 8px;
+    text-align: center;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .student-column, .subject-column {
+    position: sticky;
+    left: 0;
+    background: white;
+    font-weight: 500;
+    text-align: left;
+    min-width: 150px;
+  }
+  
+  .student-cell, .subject-cell {
+    background: white;
+    font-weight: 500;
+    text-align: left;
+    border-right: 1px solid #e5e7eb;
+  }
+  
+  .date-column {
+    min-width: 60px;
+  }
+  
+  .grade-cell {
+    cursor: pointer;
+    transition: background 0.2s;
+    font-weight: 500;
+    pointer-events: auto;
+  }
+  
+  .grade-cell:hover {
+    background: #f3f4f6;
+  }
+  
+  .grade-cell.editing {
+    padding: 0;
+  }
+  
+  .grade-cell.excellent {
+    background: #dcfce7;
+    color: #166534;
+  }
+  
+  .grade-cell.good {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+  
+  .grade-cell.satisfactory {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  
+  .grade-cell.poor {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  
+  .grade-cell.absent {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+  
+  .grade-cell.late {
+    background: #fed7aa;
+    color: #c2410c;
+  }
+  
+  .grade-cell.empty {
+    background: white;
+    color: #9ca3af;
+  }
+  
+  .grade-input {
+    width: 50px;
+    padding: 8px;
+    text-align: center;
+    border: 2px solid #3b82f6;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    background: white;
+    color: #1f2937;
+  }
+  
+  .gradebook-footer {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+  }
+  
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  
+  .legend-title {
+    font-size: 14px;
+    color: #6b7280;
+  }
+  
+  .legend-items {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  
+  .legend-items span {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  
+  .legend-excellent { background: #dcfce7; color: #166534; }
+  .legend-good { background: #dbeafe; color: #1e40af; }
+  .legend-satisfactory { background: #fef3c7; color: #92400e; }
+  .legend-poor { background: #fee2e2; color: #991b1b; }
+  .legend-absent { background: #f3f4f6; color: #6b7280; }
+  .legend-late { background: #fed7aa; color: #c2410c; }
+  .legend-empty { background: white; color: #9ca3af; border: 1px solid #e5e7eb; }
+  
+  .hint {
+    margin-top: 16px;
+    font-size: 12px;
+    color: #9ca3af;
+    text-align: center;
+  }
+  
+  .no-data {
+    text-align: center;
+    padding: 48px;
+    color: #9ca3af;
+    background: white;
+    border-radius: 12px;
+  }
+  
+  .loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+    font-size: 16px;
+    color: #6b7280;
+  }
+  
+  @media (max-width: 768px) {
+    .gradebook {
+      padding: 16px;
+    }
+    
+    .filters {
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .student-column, .subject-column {
+      min-width: 120px;
+    }
+    
+    .date-column {
+      min-width: 50px;
+    }
+  }
+`}</style>
     </div>
   );
 }

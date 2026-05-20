@@ -281,7 +281,6 @@ const loadStudentSchedule = async () => {
     return <div className="loading">Загрузка...</div>;
   }
 
-  // Общий компонент расписания для обоих типов пользователей
   const ScheduleContent = ({ showDeleteButton = false }: { showDeleteButton?: boolean }) => (
     <div className="schedule-grid">
       {daysOfWeek.map(day => (
