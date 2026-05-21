@@ -1,10 +1,12 @@
 import express, { Application } from 'express';
+import dotenv from 'dotenv';    
+import PgSession from 'connect-pg-simple';
+import pool from './db/pool'; 
 import path from 'path';
 import session from 'express-session';
 import authRoutes from './routes/auth_routes';
-import dotenv from 'dotenv';    
-import PgSession from 'connect-pg-simple';
-import pool from './db/client'; 
+import gradebookRoutes from './routes/gradebook_routes';
+import scheduleRoutes from './routes/schedule_routes';
 
 dotenv.config();
 
@@ -27,7 +29,7 @@ app.use(
     cookie: {
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
-      maxAge: 1000 * 60 * 60 * 24,   // 24 часа
+      maxAge: 1000 * 60 * 60,
       sameSite: 'lax',
     },
   })
@@ -36,7 +38,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/api/', authRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/gradebook', gradebookRoutes);
+app.use('/api/schedule', scheduleRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
