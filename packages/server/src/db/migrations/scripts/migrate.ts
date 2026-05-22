@@ -15,9 +15,7 @@ interface Migration {
   executed_at: Date;
 }
 
-async function migrate(): Promise<void> {
-  console.log('Starting database migration...');
-  
+async function migrate(): Promise<void> {  
   try {
     const migrationsDir = path.resolve(__dirname, '../../migrations');
     

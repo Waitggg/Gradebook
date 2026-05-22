@@ -265,9 +265,6 @@ const loadTeacherGradebookData = async () => {
     const allDatesSet = new Set([...regularMonthDates, ...changeDates]);
     const monthDateList = Array.from(allDatesSet).sort();
     
-    console.log('Regular dates:', regularMonthDates);
-    console.log('Change dates:', changeDates);
-    console.log('All dates:', monthDateList);
     setMonthDates(monthDateList);
     
     const studentsRes = await fetch(`/api/gradebook/classes/${selectedClass}/students`, {

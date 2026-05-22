@@ -671,14 +671,6 @@ export async function getChangesForSubject(req: Request, res: Response): Promise
       [classId, subjectId, startDate, endDate]
     );
     
-    console.log('Changes found:', result.rows.map((row: any) => ({
-      id: row.id,
-      date: row.date,
-      lesson_number: row.lesson_number,
-      change_type: row.change_type,
-      subject_id: row.subject_id
-    })));
-    
     return res.json({ success: true, changes: result.rows });
   } catch (error) {
     console.error('Get changes for subject error:', error);

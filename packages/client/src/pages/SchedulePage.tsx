@@ -116,9 +116,7 @@ const loadTeacherSchedule = async () => {
       credentials: 'include'
     });
     if (response.ok) {
-      const data = await response.json();
-      console.log('Week schedule:', data.week_schedule);
-      
+      const data = await response.json();      
       const allLessons: ScheduleItem[] = [];
       data.week_schedule?.forEach((day: any) => {
         day.lessons.forEach((lesson: any) => {
@@ -148,9 +146,7 @@ const loadStudentSchedule = async () => {
       credentials: 'include' 
     });
     if (response.ok) {
-      const data = await response.json();
-      console.log('Week schedule:', data.week_schedule);
-      
+      const data = await response.json();      
       const allLessons: ScheduleItem[] = [];
       data.week_schedule?.forEach((day: any) => {
         day.lessons.forEach((lesson: any) => {
@@ -197,7 +193,6 @@ const handleAddChange = async (e: React.FormEvent) => {
   if (!selectedClass) return;
   
   try {
-      console.log('selectedClass:', selectedClass);
 
     const response = await fetch('/api/schedule/changes', {
       method: 'POST',

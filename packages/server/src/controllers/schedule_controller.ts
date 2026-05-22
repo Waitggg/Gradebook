@@ -207,8 +207,6 @@ export async function getScheduleWithChanges(req: Request, res: Response): Promi
     let dayOfWeek = dateObj.getDay();
     if (dayOfWeek === 0) dayOfWeek = 7;
     
-    console.log(`Target date: ${targetDate}, Day of week: ${dayOfWeek}`);
-
     const regularSchedule = await pool.query(
       `SELECT s.id, s.day_of_week, s.lesson_number, s.room,
               sub.id as subject_id, sub.name as subject_name,
@@ -222,8 +220,6 @@ export async function getScheduleWithChanges(req: Request, res: Response): Promi
        ORDER BY s.lesson_number`,
       [classId, dayOfWeek]
     );
-
-    console.log(`Found ${regularSchedule.rows.length} regular lessons`);
 
     const changes = await pool.query(
       `SELECT sc.*,
@@ -240,8 +236,6 @@ export async function getScheduleWithChanges(req: Request, res: Response): Promi
        ORDER BY sc.lesson_number`,
       [classId, searchDate]
     );
-
-    console.log(`Found ${changes.rows.length} changes`);
 
     const lessonTimes = await pool.query(
       'SELECT lesson_number, start_time, end_time FROM lesson_times ORDER BY lesson_number'
@@ -353,8 +347,6 @@ export async function getScheduleWithChanges(req: Request, res: Response): Promi
         });
       }
     }
-
-    console.log(`Final schedule has ${finalSchedule.length} items`);
 
     return res.json({ 
       success: true, 
