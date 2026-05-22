@@ -2,20 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-import pool from '../pool';
+import pool from '../../pool';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
-
-interface DbConfig {
-  host: string;
-  port: number;
-  user: string;
-  password: string;
-  database: string;
-}
+dotenv.config({ path: path.resolve(__dirname, '../../../../env') });
 
 interface Migration {
   id: number;

@@ -9,13 +9,13 @@ interface Subject {
 interface Class {
   id: number;
   name: string;
-  graduation_year: number;
   year?: number;
 }
 
 interface Student {
   id: number;
   name: string;
+  isfired?: boolean;
 }
 
 interface GradeRecord {
@@ -53,14 +53,11 @@ const normalizeDate = (date?: string) => {
   const parsed = new Date(date);
   if (isNaN(parsed.getTime())) return '';
   
-  const year = parsed.getUTCFullYear();
-  const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(parsed.getUTCDate()).padStart(2, '0');
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  
   return `${year}-${month}-${day}`;
-};
-
-const convertToOurDayOfWeek = (jsDay: number): number => {
-  return jsDay === 0 ? 6 : jsDay - 1;
 };
 
 const getMonthDatesFilteredByDays = (referenceDate: Date = new Date(), allowedDays: number[]): string[] => {
@@ -72,10 +69,10 @@ const getMonthDatesFilteredByDays = (referenceDate: Date = new Date(), allowedDa
   
   for (let i = 1; i <= daysInMonth; i++) {
     const date = new Date(year, month, i);
-    const jsDay = date.getDay();
-    const ourDay = convertToOurDayOfWeek(jsDay);
+    let jsDay = date.getDay();
+    if (jsDay === 0) jsDay = 7;
     
-    if (allowedDays.includes(ourDay)) {
+    if (allowedDays.includes(jsDay)) {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
@@ -103,15 +100,38 @@ function GradebookPage() {
   
   const [editingCell, setEditingCell] = useState<{ studentId: number; date: string } | null>(null);
   const [editValue, setEditValue] = useState<string>('');
-const [hoveredColumn, setHoveredColumn] = useState<number | null>(null);
+  const [hoveredColumn, setHoveredColumn] = useState<number | null>(null);
+  const [hoveredRow, setHoveredRow] = useState<number | null>(null);
+  const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
 
-const handleColumnMouseEnter = (index: number) => {
-  setHoveredColumn(index);
-};
+  const handleCellMouseEnter = (rowIndex: number, colIndex: number) => {
+    setHoveredCell({ row: rowIndex, col: colIndex });
+    setHoveredRow(rowIndex);
+    setHoveredColumn(colIndex);
+  };
 
-const handleColumnMouseLeave = () => {
-  setHoveredColumn(null);
-};
+  const handleCellMouseLeave = () => {
+    setHoveredCell(null);
+    setHoveredRow(null);
+    setHoveredColumn(null);
+  };
+
+  const handleColumnMouseEnter = (index: number) => {
+    setHoveredColumn(index);
+  };
+
+  const handleColumnMouseLeave = () => {
+    setHoveredColumn(null);
+  };
+
+  const handleRowMouseEnter = (index: number) => {
+    setHoveredRow(index);
+  };
+
+  const handleRowMouseLeave = () => {
+    setHoveredRow(null);
+  };
+
   useEffect(() => {
     checkAuth();
   }, []);
@@ -182,83 +202,128 @@ const handleColumnMouseLeave = () => {
     }
   };
 
-  const loadTeacherGradebookData = async () => {
-    if (!selectedClass || !selectedSubject) return;
+const loadTeacherGradebookData = async () => {
+  if (!selectedClass || !selectedSubject) return;
+  
+  try {
+    const scheduleResponse = await fetch(`/api/gradebook/schedule/class/${selectedClass}`, {
+      credentials: 'include'
+    });
     
-    try {
-      const scheduleResponse = await fetch(`/api/gradebook/schedule/class/${selectedClass}`, {
-        credentials: 'include'
+    let uniqueDays: number[] = [];
+    let scheduleMap = new Map();
+    
+    if (scheduleResponse.ok) {
+      const data = await scheduleResponse.json();
+      const schedule = data.schedule || [];
+      
+      schedule.forEach((item: { day_of_week: number; subject_id: number }) => {
+        if (item.subject_id === selectedSubject) {
+          if (!scheduleMap.has(item.day_of_week)) {
+            scheduleMap.set(item.day_of_week, []);
+          }
+          scheduleMap.get(item.day_of_week).push(item);
+        }
       });
       
-      let uniqueDays: number[] = [];
+      uniqueDays = [...scheduleMap.keys()];
+      setScheduleDays(uniqueDays);
+    }
+    
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    
+    const startDate = `${startOfMonth.getFullYear()}-${String(startOfMonth.getMonth() + 1).padStart(2, '0')}-${String(startOfMonth.getDate()).padStart(2, '0')}`;
+    const endDate = `${endOfMonth.getFullYear()}-${String(endOfMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfMonth.getDate()).padStart(2, '0')}`;
+    
+    const changesResponse = await fetch(
+      `/api/gradebook/changes/class/${selectedClass}/subject/${selectedSubject}?start=${startDate}&end=${endDate}`,
+      { credentials: 'include' }
+    );
+    
+    let changeDates: string[] = [];
+    let changesMap = new Map();
+    
+    if (changesResponse.ok) {
+      const changesData = await changesResponse.json();
+      const changes = changesData.changes || [];
       
-      if (scheduleResponse.ok) {
-        const data = await scheduleResponse.json();
-        const schedule = data.schedule || [];
+      changes.forEach((change: any) => {
+        const changeDate = normalizeDate(change.date);
+        changeDates.push(changeDate);
         
-        const days: number[] = schedule.map((item: { day_of_week: number }) => item.day_of_week);
-        uniqueDays = [...new Set(days)];
-        setScheduleDays(uniqueDays);
-      }
-      
-      const monthDateList = getMonthDatesFilteredByDays(new Date(), uniqueDays.length > 0 ? uniqueDays : [1, 2, 3, 4, 5, 6]);
-      setMonthDates(monthDateList);
-      
-      const studentsRes = await fetch(`/api/gradebook/classes/${selectedClass}/students`, {
-        credentials: 'include'
+        if (!changesMap.has(changeDate)) {
+          changesMap.set(changeDate, []);
+        }
+        changesMap.get(changeDate).push(change);
       });
-      
-      if (!studentsRes.ok) return;
-      
-      const studentsData = await studentsRes.json();
-      const studentsList = studentsData.students || [];
-      
-      const studentsWithRawRecords = await Promise.all(
-        studentsList.map(async (student: Student) => {
-          const [gradesRes, attendanceRes] = await Promise.all([
-            fetch(`/api/gradebook/grades/student/${student.id}?subject_id=${selectedSubject}`, {
-              credentials: 'include'
-            }),
-            fetch(`/api/gradebook/attendance/student/${student.id}?subject_id=${selectedSubject}`, {
-              credentials: 'include'
-            })
-          ]);
-          
-          const gradesData = await gradesRes.json();
-          const attendanceData = await attendanceRes.json();
+    }
+    
+    const regularMonthDates = getMonthDatesFilteredByDays(now, uniqueDays.length > 0 ? uniqueDays : [1, 2, 3, 4, 5, 6]);
+    
+    const allDatesSet = new Set([...regularMonthDates, ...changeDates]);
+    const monthDateList = Array.from(allDatesSet).sort();
+    
+    console.log('Regular dates:', regularMonthDates);
+    console.log('Change dates:', changeDates);
+    console.log('All dates:', monthDateList);
+    setMonthDates(monthDateList);
+    
+    const studentsRes = await fetch(`/api/gradebook/classes/${selectedClass}/students`, {
+      credentials: 'include'
+    });
+    
+    if (!studentsRes.ok) return;
+    
+    const studentsData = await studentsRes.json();
+    const studentsList = studentsData.students || [];
+
+    const studentsWithRawRecords = await Promise.all(
+      studentsList.map(async (student: Student) => {
+        const [gradesRes, attendanceRes] = await Promise.all([
+          fetch(`/api/gradebook/grades/student/${student.id}?subject_id=${selectedSubject}`, {
+            credentials: 'include'
+          }),
+          fetch(`/api/gradebook/attendance/student/${student.id}?subject_id=${selectedSubject}`, {
+            credentials: 'include'
+          })
+        ]);
+        
+        const gradesData = await gradesRes.json();
+        const attendanceData = await attendanceRes.json();
+        
+        return {
+          student: { ...student, isfired: student.isfired || false },
+          grades: gradesData.grades || [],
+          attendance: attendanceData.attendance || []
+        };
+      })
+    );
+    
+    const studentsWithGrades = studentsWithRawRecords.map(({ student, grades, attendance }) => {
+      return {
+        student,
+        grades: monthDateList.map((date) => {
+          const grade = grades.find((g: any) => normalizeDate(g.grade_date) === date);
+          const attendanceItem = attendance.find((a: any) => normalizeDate(a.date) === date);
           
           return {
-            student,
-            grades: gradesData.grades || [],
-            attendance: attendanceData.attendance || []
+            id: grade?.id || attendanceItem?.id || 0,
+            date,
+            grade: grade?.grade ?? null,
+            isAbsent: attendanceItem?.status === 'absent' || false,
+            isLate: attendanceItem?.status === 'late' || false
           };
         })
-      );
-      
-      const studentsWithGrades = studentsWithRawRecords.map(({ student, grades, attendance }) => {
-        return {
-          student,
-          grades: monthDateList.map((date) => {
-            const grade = grades.find((g: any) => normalizeDate(g.grade_date) === date);
-            const attendanceItem = attendance.find((a: any) => normalizeDate(a.date) === date);
-            
-            return {
-              id: grade?.id || attendanceItem?.id || 0,
-              date,
-              grade: grade?.grade ?? null,
-              isAbsent: attendanceItem?.status === 'absent' || false,
-              isLate: attendanceItem?.status === 'late' || false
-            };
-          })
-        };
-      });
-      
-      setStudentsGrades(studentsWithGrades);
-    } catch (error) {
-      console.error('Load teacher gradebook error:', error);
-    }
-  };
-
+      };
+    });
+    
+    setStudentsGrades(studentsWithGrades);
+  } catch (error) {
+    console.error('Load teacher gradebook error:', error);
+  }
+};
 const findClosestLesson = (createdTime: string, lessonTimes: LessonTime[], scheduleForDay?: any[]): { lesson: LessonTime, lateMinutes: number } | null => {
   if (!lessonTimes.length) return null;
   
@@ -580,7 +645,7 @@ const loadStudentData = async () => {
               <option value="">Выберите класс</option>
               {classes.map((classItem) => (
                 <option key={classItem.id} value={classItem.id}>
-                  {classItem.name} (выпуск {classItem.graduation_year || classItem.year})
+                  {classItem.name} (выпуск {classItem.year})
                 </option>
               ))}
             </select>
@@ -609,11 +674,12 @@ const loadStudentData = async () => {
     <table className="gradebook-table">
       <thead>
         <tr>
+          <th className="index-column">Номер</th>
           <th className="student-column">Ученик</th>
           {monthDates.map((date, index) => (
             <th 
               key={index} 
-              className={`date-column ${hoveredColumn === index ? 'column-hover' : ''}`}
+              className={`date-column ${hoveredColumn === index ? 'column-hover' : ''} ${hoveredCell?.col === index ? 'column-hover' : ''}`}
               title={date}
               onMouseEnter={() => handleColumnMouseEnter(index)}
               onMouseLeave={handleColumnMouseLeave}
@@ -624,18 +690,25 @@ const loadStudentData = async () => {
         </tr>
       </thead>
       <tbody>
-        {studentsGrades.map(({ student, grades }) => (
-          <tr key={student.id}>
+        {studentsGrades.map(({ student, grades }, studentIndex) => (
+          <tr key={student.id} 
+          className={`${student.isfired ? 'fired-student' : ''} ${hoveredRow === studentIndex ? 'row-hover' : ''} ${hoveredCell?.row === studentIndex ? 'row-hover' : ''}`}
+          onMouseEnter={() => handleRowMouseEnter(studentIndex)}
+          onMouseLeave={handleRowMouseLeave}   >
+            <td className="student-index-cell">{studentIndex+1}</td>
             <td className="student-cell">{student.name}</td>
             {grades.map((gradeRecord, idx) => {
               const isEditing = editingCell?.studentId === student.id && editingCell?.date === gradeRecord.date;
               const content = getCellContent(gradeRecord.grade, gradeRecord.isAbsent, gradeRecord.isLate, gradeRecord.lateMinutes);
               const isColumnHovered = hoveredColumn === idx;
+              const isCellHovered = hoveredCell?.row === studentIndex && hoveredCell?.col === idx;
               
               return (
                 <td
                   key={idx}
-                  className={`${getCellClass(gradeRecord.grade, gradeRecord.isAbsent, gradeRecord.isLate, isEditing)} ${isColumnHovered ? 'column-hover' : ''}`}
+                  className={`${getCellClass(gradeRecord.grade, gradeRecord.isAbsent, gradeRecord.isLate, isEditing)} ${isColumnHovered ? 'column-hover' : ''} ${isCellHovered ? 'column-hover' : ''}`}
+                  onMouseEnter={() => handleCellMouseEnter(studentIndex, idx)}
+                  onMouseLeave={handleCellMouseLeave}
                   onClick={() => handleCellClick(student.id, gradeRecord.date, gradeRecord.grade, gradeRecord.isAbsent, gradeRecord.isLate)}
                   onContextMenu={(e) => handleCellContextMenu(e, student.id, gradeRecord.date, gradeRecord.isAbsent)}
                   onAuxClick={(e) => {
@@ -686,6 +759,8 @@ const loadStudentData = async () => {
         </div>
         
       <style>{`
+      
+      
   .gradebook {
     padding: 24px;
     max-width: 1400px;
@@ -775,13 +850,29 @@ const loadStudentData = async () => {
     background: white;
     font-weight: 500;
     text-align: left;
-    min-width: 150px;
+    min-width: 75px;
   }
   
+  .index-column, .subject-column {
+    position: sticky;
+    left: 0;
+    background: white;
+    font-weight: 500;
+    text-align: left;
+    min-width: 50px;
+  }
+
   .student-cell, .subject-cell {
     background: white;
     font-weight: 500;
     text-align: left;
+    border-right: 1px solid #e5e7eb;
+  }
+
+    .student-index-cell, .subject-cell {
+    background: white;
+    font-weight: 500;
+    text-align: center;
     border-right: 1px solid #e5e7eb;
   }
   
@@ -895,6 +986,11 @@ const loadStudentData = async () => {
     color: #9ca3af;
     text-align: center;
   }
+
+  .fired-student{
+        color: #991b1b;
+        background: #fee2e2;
+  }
   
   .no-data {
     text-align: center;
@@ -947,7 +1043,9 @@ const loadStudentData = async () => {
               <tr>
                 <th className="subject-column">Предмет</th>
                 {monthDates.map((date, index) => (
-                  <th key={index} className="date-column" title={date}>
+                  <th key={index} 
+                      className={`date-column ${hoveredCell?.col === index ? 'column-hover' : ''}`}
+                      title={date}>
                     {new Date(date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                   </th>
                 ))}
@@ -1084,13 +1182,6 @@ const loadStudentData = async () => {
     font-weight: 500;
     text-align: left;
     min-width: 150px;
-  }
-  
-  .student-cell, .subject-cell {
-    background: white;
-    font-weight: 500;
-    text-align: left;
-    border-right: 1px solid #e5e7eb;
   }
   
   .date-column {

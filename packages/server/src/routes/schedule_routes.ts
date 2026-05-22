@@ -10,12 +10,26 @@ import {
   getLessonTimes,
   getTeacherSchedule,
   getAllSubjectsForTeacher,
-  getAllClassesForTeacher
+  getAllClassesForTeacher,
+  getScheduleWithChanges,
+  createScheduleChange,
+  deleteScheduleChange,
+  getScheduleChangesForDate,
+  copyScheduleToDate,
+  getWeekScheduleWithChanges
 } from '../controllers/schedule_controller.js';
 
 const router = Router();
 
 router.use(authMiddleware);
+
+router.get('/class/:classId/date/:date', getScheduleWithChanges);
+router.get('/class/:classId/week/:date', getWeekScheduleWithChanges);
+
+router.post('/changes', createScheduleChange);
+router.delete('/changes/:id', deleteScheduleChange);
+router.get('/changes/:classId/:date', getScheduleChangesForDate);
+router.post('/copy', copyScheduleToDate);
 
 router.get('/class/:classId', getClassSchedule);
 router.get('/classes', getAllClassesSchedule);

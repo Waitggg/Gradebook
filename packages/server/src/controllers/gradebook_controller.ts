@@ -501,6 +501,190 @@ export async function submitHomework(req: Request<{ id: string }, {}, HomeworkSu
   }
 }
 
+export async function getTeacherScheduleWithChanges(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  const targetDate = req.query.date as string || new Date().toISOString().split('T')[0];
+
+  try {
+    const scheduleResult: QueryResult = await pool.query(
+      `SELECT s.id, s.day_of_week, s.lesson_number, s.room,
+              sub.id as subject_id, sub.name as subject_name,
+              c.id as class_id, c.name as class_name,
+              c.year as class_year
+       FROM schedule s
+       JOIN subjects sub ON s.subject_id = sub.id
+       JOIN classes c ON s.class_id = c.id
+       WHERE s.teacher_id = $1
+       ORDER BY s.day_of_week, s.lesson_number`,
+      [session.userId]
+    );
+
+    const teacherClasses = await pool.query(
+      `SELECT DISTINCT class_id FROM schedule WHERE teacher_id = $1`,
+      [session.userId]
+    );
+
+    const classIds = teacherClasses.rows.map(row => row.class_id);
+    
+    let changes: any[] = [];
+    
+    if (classIds.length > 0) {
+      const changesResult = await pool.query(
+        `SELECT sc.*, c.name as class_name
+         FROM schedule_changes sc
+         JOIN classes c ON sc.class_id = c.id
+         WHERE sc.class_id = ANY($1) AND sc.date = $2::date
+         ORDER BY sc.class_id, sc.lesson_number`,
+        [classIds, targetDate]
+      );
+      changes = changesResult.rows;
+    }
+
+    const changesMap = new Map();
+    changes.forEach((change: any) => {
+      const key = `${change.class_id}_${change.lesson_number}`;
+      changesMap.set(key, change);
+    });
+
+    const finalSchedule = scheduleResult.rows.map((item: any) => {
+      const key = `${item.class_id}_${item.lesson_number}`;
+      const change = changesMap.get(key);
+
+      if (change) {
+        if (change.change_type === 'cancel') {
+          return {
+            ...item,
+            is_canceled: true,
+            change_type: 'cancel',
+            notes: change.notes
+          };
+        } else if (change.change_type === 'replace') {
+          return {
+            id: change.id,
+            day_of_week: item.day_of_week,
+            lesson_number: item.lesson_number,
+            subject_id: change.subject_id,
+            subject_name: change.subject_name || 'Замена',
+            teacher_id: change.teacher_id,
+            teacher_name: change.teacher_name || 'Учитель',
+            class_id: item.class_id,
+            class_name: item.class_name,
+            class_year: item.class_year,
+            room: change.room || item.room,
+            is_changed: true,
+            change_type: 'replace',
+            original_subject: item.subject_name,
+            original_teacher: item.teacher_name,
+            notes: change.notes
+          };
+        }
+      }
+      
+      return {
+        ...item,
+        is_regular: true
+      };
+    });
+
+    for (const change of changes) {
+      if (change.change_type === 'added') {
+        const dateObj = new Date(targetDate);
+        let dayOfWeek = dateObj.getDay();
+        if (dayOfWeek === 0) dayOfWeek = 7;
+        
+        finalSchedule.push({
+          id: change.id,
+          day_of_week: dayOfWeek,
+          lesson_number: change.lesson_number,
+          subject_id: change.subject_id,
+          subject_name: change.subject_name || 'Добавленный урок',
+          teacher_id: change.teacher_id,
+          teacher_name: change.teacher_name || 'Учитель',
+          class_id: change.class_id,
+          class_name: change.class_name,
+          room: change.room,
+          is_added: true,
+          change_type: 'added',
+          notes: change.notes
+        });
+      }
+    }
+    
+    finalSchedule.sort((a, b) => {
+      if (a.day_of_week !== b.day_of_week) return a.day_of_week - b.day_of_week;
+      return a.lesson_number - b.lesson_number;
+    });
+
+    const lessonTimesResult: QueryResult = await pool.query(
+      'SELECT lesson_number, start_time, end_time FROM lesson_times ORDER BY lesson_number'
+    );
+    
+    return res.json({ 
+      success: true, 
+      schedule: finalSchedule,
+      lesson_times: lessonTimesResult.rows,
+      date: targetDate
+    });
+  } catch (error) {
+    console.error('Get teacher schedule with changes error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка получения расписания' });
+  }
+}
+
+export async function getChangesForSubject(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId) {
+    return res.status(401).json({ success: false, message: 'Не авторизован' });
+  }
+
+  const classId = req.params.classId;
+  const subjectId = req.params.subjectId;
+  const startDate = req.query.start as string;
+  const endDate = req.query.end as string;
+
+  try {
+    const result = await pool.query(
+      `SELECT sc.id, 
+              to_char(sc.date, 'YYYY-MM-DD') as date,
+              sc.lesson_number, 
+              sc.room, 
+              sc.change_type, 
+              sc.subject_id,
+              sc.teacher_id,
+              sc.notes,
+              sub.name as subject_name, 
+              u.name as teacher_name,
+              sc.original_subject_id,
+              sc.original_teacher_id
+       FROM schedule_changes sc
+       LEFT JOIN subjects sub ON sc.subject_id = sub.id
+       LEFT JOIN users u ON sc.teacher_id = u.id
+       WHERE sc.class_id = $1 
+         AND sc.subject_id = $2
+         AND sc.date BETWEEN $3::date AND $4::date
+         AND sc.change_type IN ('replace', 'added')
+       ORDER BY sc.date, sc.lesson_number`,
+      [classId, subjectId, startDate, endDate]
+    );
+    
+    console.log('Changes found:', result.rows.map((row: any) => ({
+      id: row.id,
+      date: row.date,
+      lesson_number: row.lesson_number,
+      change_type: row.change_type,
+      subject_id: row.subject_id
+    })));
+    
+    return res.json({ success: true, changes: result.rows });
+  } catch (error) {
+    console.error('Get changes for subject error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка получения изменений' });
+  }
+}
 export async function getTeacherSchedule(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
   if (!session.userId || session.userRole !== 'teacher') {
@@ -684,7 +868,7 @@ export async function getClassStudents(req: Request, res: Response): Promise<Res
 
   try {
     const result = await pool.query(
-      `SELECT u.id, u.name, u.email
+      `SELECT u.id, u.name, u.email, COALESCE(u.isFired, false) as isFired
        FROM users u
        JOIN student_classes sc ON u.id = sc.student_id
        WHERE sc.class_id = $1 AND u.role = 'student'
