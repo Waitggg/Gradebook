@@ -6,6 +6,7 @@ import ProfilePage from './pages/ProfilePage';
 import GradebookPage from './pages/GradebookPage';
 import SchedulePage from './pages/SchedulePage';
 import ManageStudentsPage from './pages/ManageStudentsPage';
+import LabStudentPage from './pages/LabStudentPage';
 
 function App() {
   const [isAuth, setIsAuth] = useState<boolean>(false);
@@ -70,6 +71,12 @@ function App() {
           isAuth ? 
             <ManageStudentsPage /> : 
             <Navigate to="/login" replace />
+        } />
+
+        <Route path="/labs" element={
+          isAuth ?
+              <LabStudentPage /> :
+              <Navigate to="/login" replace />
         } />
       </Routes>
     </BrowserRouter>

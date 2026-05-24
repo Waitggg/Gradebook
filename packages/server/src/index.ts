@@ -7,6 +7,7 @@ import session from 'express-session';
 import authRoutes from './routes/auth_routes';
 import gradebookRoutes from './routes/gradebook_routes';
 import scheduleRoutes from './routes/schedule_routes';
+import labRoutes from './routes/lab_routes';
 
 dotenv.config();
 
@@ -41,6 +42,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/auth', authRoutes);
 app.use('/api/gradebook', gradebookRoutes);
 app.use('/api/schedule', scheduleRoutes);
+app.use('/api/labs', labRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
