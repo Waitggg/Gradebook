@@ -37,12 +37,14 @@ function Header() {
     { path: '/schedule', label: 'Расписание' },
   ];
 
-  if (user?.role === 'teacher') {
-    navLinks.push({ path: '/manage-students', label: 'Управление'});
-  }
 
   if (user?.role === 'student') {
     navLinks.push({ path: '/labs', label: 'Лабораторные работы' });
+  }
+
+  if (user?.role === 'teacher') {
+    navLinks.push({ path: '/manage-students', label: 'Управление'});
+    navLinks.push({ path: '/check-labs', label: 'Проверка работ' });
   }
 
   const isActive = (path: string) => {

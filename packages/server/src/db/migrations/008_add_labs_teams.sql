@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS lab_teams (
+    id SERIAL PRIMARY KEY,
+    lab_id INTEGER REFERENCES homework(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS lab_team_members (
+    id SERIAL PRIMARY KEY,
+    team_id INTEGER REFERENCES lab_teams(id) ON DELETE CASCADE,
+    student_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(team_id, student_id)
+);

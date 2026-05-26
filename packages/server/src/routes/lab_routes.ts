@@ -11,7 +11,8 @@ import {
     getSubjects,
     createLab,
     updateLab,
-    deleteLab, getAllLabs
+    deleteLab, getAllLabs,
+    getTeacherLabs, getLabSubmissionsForTeacher, gradeSubmission
 } from '../controllers/lab_controller';
 
 const router = Router();
@@ -30,6 +31,9 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.get('/subjects', getSubjects);
 router.get('/all', getAllLabs);
+router.get('/teacher', getTeacherLabs);
+router.get('/teacher/:id/submissions', getLabSubmissionsForTeacher);
+router.post('/submission/:id/grade', gradeSubmission);
 router.get('/', getStudentLabs);
 router.post('/', createLab);
 router.put('/:id', updateLab);

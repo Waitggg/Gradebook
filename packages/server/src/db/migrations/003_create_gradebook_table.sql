@@ -151,3 +151,6 @@ INSERT INTO classes (name, year) VALUES
     ('Т-395', 2027),
     ('Т-396', 2027)
 ON CONFLICT DO NOTHING;
+
+ALTER TABLE grades ADD COLUMN IF NOT EXISTS homework_id INTEGER REFERENCES homework_submissions(id) ON DELETE SET NULL;
+ALTER TYPE grade_type ADD VALUE 'lab';
