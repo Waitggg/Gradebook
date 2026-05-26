@@ -283,3 +283,85 @@ export async function getSubjects(req: Request, res: Response): Promise<Response
         return res.status(500).json({ success: false, message: 'Ошибка' });
     }
 }
+
+export async function createLab(req: Request, res: Response): Promise<Response> {
+    const session = req.session as SessionWithUser;
+    if (!session.userId || session.userRole !== 'teacher') {
+        return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    }
+
+    const { subject_id, teacher_id, title, description, due_date, is_group, materials } = req.body;
+
+    try {
+        const result = await pool.query(`
+            INSERT INTO homework (subject_id, teacher_id, title, description, due_date, is_group, issued_date, homework_type, materials)
+            VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, 'lab', $7::jsonb)
+            RETURNING *
+        `, [subject_id, teacher_id, title, description || null, due_date, is_group || false, JSON.stringify(materials || [])]);
+
+        return res.status(201).json({ success: true, lab: result.rows[0] });
+    } catch (error) {
+        console.error('Create lab error:', error);
+        return res.status(500).json({ success: false, message: 'Ошибка создания' });
+    }
+}
+
+export async function updateLab(req: Request, res: Response): Promise<Response> {
+    const session = req.session as SessionWithUser;
+    if (!session.userId || session.userRole !== 'teacher') {
+        return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    }
+
+    const labId = parseInt(req.params.id);
+    const { subject_id, teacher_id, title, description, due_date, is_group, materials } = req.body;
+
+    try {
+        await pool.query(`
+            UPDATE homework SET subject_id=$1, teacher_id=$2, title=$3, description=$4, due_date=$5, is_group=$6, materials=$7::jsonb
+            WHERE id=$8 AND homework_type='lab'
+        `, [subject_id, teacher_id, title, description, due_date, is_group, JSON.stringify(materials || []), labId]);
+
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('Update lab error:', error);
+        return res.status(500).json({ success: false, message: 'Ошибка обновления' });
+    }
+}
+
+export async function deleteLab(req: Request, res: Response): Promise<Response> {
+    const session = req.session as SessionWithUser;
+    if (!session.userId || session.userRole !== 'teacher') {
+        return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    }
+
+    const labId = parseInt(req.params.id);
+
+    try {
+        await pool.query(`DELETE FROM homework WHERE id=$1 AND homework_type='lab'`, [labId]);
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('Delete lab error:', error);
+        return res.status(500).json({ success: false, message: 'Ошибка удаления' });
+    }
+}
+
+export async function getAllLabs(req: Request, res: Response): Promise<Response> {
+    const session = req.session as SessionWithUser;
+    if (!session.userId || session.userRole !== 'teacher') {
+        return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    }
+    try {
+        const result = await pool.query(`
+            SELECT h.*, s.name as subject_name, u.name as teacher_name
+            FROM homework h
+            JOIN subjects s ON h.subject_id = s.id
+            JOIN users u ON h.teacher_id = u.id
+            WHERE h.homework_type = 'lab'
+            ORDER BY h.due_date DESC
+        `);
+        return res.json({ success: true, labs: result.rows });
+    } catch (error) {
+        console.error('Get all labs error:', error);
+        return res.status(500).json({ success: false, message: 'Ошибка' });
+    }
+}

@@ -9,6 +9,7 @@ import gradebookRoutes from './routes/gradebook_routes';
 import scheduleRoutes from './routes/schedule_routes';
 import labRoutes from './routes/lab_routes';
 
+
 dotenv.config();
 
 const app: Application = express();
