@@ -1,223 +1,309 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 
-interface Material {
-    title?: string;
-    material_url: string;
-}
-interface Submission {
-    id: number;
-    submission_text: string;
-    file_path: string;
-    submitted_at: string;
-}
-interface Grade {
-    id: number;
-    grade: number;
-    comment: string;
-    graded_at: string;
-}
-interface Groupmate {
-    id: number;
-    name: string;
-    email: string;
-}
+
+interface Material { title?: string; material_url: string }
+interface Submission { id: number; submission_text: string; file_path: string; submitted_at: string }
+interface Grade { id: number; grade: number; comment: string; graded_at: string }
+interface Groupmate { id: number; name: string; email: string }
 interface LabWork {
-    id: number;
-    title: string;
-    description: string;
-    issued_date: string;
-    deadline: string;
-    is_group: boolean;
-    subject_name: string;
-    teacher_name: string;
-    submitted: boolean;
-    grade: number | null;
-    teacher_comment: string | null;
+    id: number; title: string; description: string;
+    issued_date: string; deadline: string; is_group: boolean;
+    subject_name: string; teacher_name: string;
+    submitted: boolean; grade: number | null; teacher_comment: string | null;
 }
 interface LabDetail {
-    id: number;
-    title: string;
-    description: string;
-    issued_date: string;
-    deadline: string;
-    is_group: boolean;
-    subject_name: string;
-    teacher_name: string;
-    materials: Material[];
+    id: number; title: string; description: string;
+    issued_date: string; deadline: string; is_group: boolean;
+    subject_name: string; teacher_name: string; materials: Material[];
 }
+
+
+const daysLeft = (d: string) => Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
+const isOverdue = (d: string) => new Date(d) < new Date();
+const fmt = (d: string) => new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+const StatusBadge: React.FC<{ submitted: boolean; deadline: string }> = ({ submitted, deadline }) => {
+    if (submitted) return <span style={{ fontSize: 11, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: 999, fontWeight: 500 }}>Сдано</span>;
+    if (isOverdue(deadline)) return <span style={{ fontSize: 11, color: '#ef4444', background: '#fef2f2', padding: '2px 8px', borderRadius: 999, fontWeight: 500 }}>Просрочено</span>;
+    const d = daysLeft(deadline);
+    return <span style={{ fontSize: 11, color: '#3b82f6', background: '#eff6ff', padding: '2px 8px', borderRadius: 999, fontWeight: 500 }}>{d === 0 ? 'Сегодня' : `${d} дн.`}</span>;
+};
+
+
+const LabCard: React.FC<{ lab: LabWork; index: number; active: boolean; onClick: () => void }> = ({ lab, index, active, onClick }) => (
+    <div onClick={onClick} style={{
+        cursor: 'pointer', padding: '12px 16px', borderRadius: 12, marginBottom: 4,
+        border: active ? '1px solid #d1d5db' : '1px solid transparent',
+        background: active ? '#f9fafb' : 'transparent',
+        transition: 'all 0.15s'
+    }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>
+                Работа №{index + 1}
+            </span>
+            <StatusBadge submitted={lab.submitted} deadline={lab.deadline} />
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#1f2937', lineHeight: 1.3, marginBottom: 6 }}>{lab.title}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: '#9ca3af' }}>{lab.subject_name}</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: isOverdue(lab.deadline) && !lab.submitted ? '#ef4444' : '#9ca3af' }}>
+                    {fmt(lab.deadline)}
+                </span>
+                {lab.grade && <span style={{ fontSize: 11, fontWeight: 700, color: '#d97706' }}>{lab.grade}/10</span>}
+            </div>
+        </div>
+    </div>
+);
+
+
+const Sec: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+    <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            {title}
+        </div>
+        {children}
+    </div>
+);
+
+const Chip: React.FC<{ active: boolean; onClick: () => void; children: React.ReactNode }> = ({ active, onClick, children }) => (
+    <button onClick={onClick} style={{
+        padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
+        background: active ? '#111827' : '#f3f4f6', color: active ? '#fff' : '#6b7280'
+    }}>{children}</button>
+);
 
 const LabStudentPage: React.FC = () => {
     const [labs, setLabs] = useState<LabWork[]>([]);
     const [subjects, setSubjects] = useState<{ id: number; name: string }[]>([]);
-    const [selectedSubject, setSelectedSubject] = useState<number | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [sideOpen, setSideOpen] = useState(false);
+    const [filterSubject, setFilterSubject] = useState<number | null>(null);
+    const [filterStatus, setFilterStatus] = useState<'all' | 'submitted' | 'pending'>('all');
+    const [activeId, setActiveId] = useState<number | null>(null);
     const [detail, setDetail] = useState<LabDetail | null>(null);
     const [submission, setSubmission] = useState<Submission | null>(null);
     const [grade, setGrade] = useState<Grade | null>(null);
-    const [groupmates, setGroupmates] = useState<Groupmate[]>([]);
-    const [loadingDetail, setLoadingDetail] = useState(false);
-    const [text, setText] = useState('');
+    const [mates, setMates] = useState<Groupmate[]>([]);
+    const [comment, setComment] = useState('');
     const [file, setFile] = useState<File | null>(null);
     const [sending, setSending] = useState(false);
-    const [msg, setMsg] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [loadingD, setLoadingD] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const fetchLabs = async () => {
         setLoading(true);
         try {
-            const params = selectedSubject ? { subject_id: selectedSubject } : {};
+            const params: any = {};
+            if (filterSubject) params.subject_id = filterSubject;
             const { data } = await axios.get('/api/labs', { params });
-            setLabs(data.labs || []);
-        } catch { setMsg('Ошибка загрузки'); }
-        finally { setLoading(false); }
+            let filtered = data.labs || [];
+            if (filterStatus === 'submitted') filtered = filtered.filter((l: LabWork) => l.submitted);
+            if (filterStatus === 'pending') filtered = filtered.filter((l: LabWork) => !l.submitted);
+            setLabs(filtered);
+        } catch {}
+        setLoading(false);
     };
 
-    const openSide = async (id: number) => {
-        setSideOpen(true);
-        setLoadingDetail(true);
+    const openLab = async (id: number) => {
+        setActiveId(id); setLoadingD(true);
         try {
             const { data } = await axios.get(`/api/labs/${id}`);
-            setDetail(data.lab || null);
-            setSubmission(data.submission || null);
-            setGrade(data.grade || null);
-            setGroupmates(data.groupmates || []);
-            setText(data.submission?.submission_text || '');
-            setFile(null);
-        } catch { setMsg('Ошибка загрузки'); }
-        finally { setLoadingDetail(false); }
+            setDetail(data.lab); setSubmission(data.submission); setGrade(data.grade);
+            setMates(data.groupmates || []); setComment(''); setFile(null);
+        } catch {}
+        setLoadingD(false);
     };
 
     const send = async () => {
-        if (!detail) return;
-        if (!text && !file) { setMsg('Текст или файл обязательны'); return; }
+        if (!detail || (!comment && !file)) return;
         setSending(true);
         try {
             const fd = new FormData();
-            fd.append('submission_text', text);
+            fd.append('submission_text', comment);
             if (file) fd.append('file', file);
             await axios.post(`/api/labs/${detail.id}/submit`, fd);
-            setMsg('Отправлено!');
-            openSide(detail.id);
-        } catch { setMsg('Ошибка отправки'); }
-        finally { setSending(false); }
+            openLab(detail.id);
+        } catch {}
+        setSending(false);
     };
 
-    useEffect(() => { fetchLabs(); }, [selectedSubject]);
-    useEffect(() => {
-        axios.get('/api/subjects/my').then(r => setSubjects(r.data.subjects || [])).catch(() => {});
+    const downloadFile = async (filePath: string) => {
+        try {
+            const response = await axios.get(filePath, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filePath.split('/').pop() || 'file');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch {}
+    };
+
+        useEffect(() => { fetchLabs(); }, [filterSubject, filterStatus]);
+        useEffect(() => {
+            axios.get('/api/labs/subjects').then(r => setSubjects(r.data.subjects || [])).catch(() => {});
     }, []);
 
-    const dl = (d: string) => {
-        const days = Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
-        if (days < 0) return { t: `-${Math.abs(days)}д`, c: 'red' };
-        if (days === 0) return { t: 'Сегодня', c: 'orange' };
-        return { t: `${days}д`, c: 'green' };
-    };
+    const activeLab = labs.find(l => l.id === activeId);
+    const colors = { bg: '#f8f9fa', white: '#fff', border: '#e5e7eb', text: '#1f2937', sub: '#9ca3af', accent: '#111827' };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex">
-            <div className="flex-1 p-6">
-                <h1 className="text-2xl font-bold mb-4">🔬 Лабораторные работы</h1>
-                <div className="flex gap-2 mb-6 flex-wrap">
-                    <button onClick={() => setSelectedSubject(null)}
-                            className={`px-4 py-2 rounded-lg text-sm ${!selectedSubject ? 'bg-blue-600 text-white' : 'bg-white border'}`}>Все</button>
-                    {subjects.map(s => (
-                        <button key={s.id} onClick={() => setSelectedSubject(s.id)}
-                                className={`px-4 py-2 rounded-lg text-sm ${selectedSubject === s.id ? 'bg-blue-600 text-white' : 'bg-white border'}`}>{s.name}</button>
-                    ))}
+        <div style={{ display: 'flex', height: '100vh', background: colors.bg, fontFamily: 'system-ui, sans-serif', color: colors.text }}>
+            <div style={{ width: 300, background: colors.white, borderRight: `1px solid ${colors.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+                <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${colors.border}` }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Лабораторные работы</div>
+
+
+                    <div style={{ fontSize: 10, fontWeight: 600, color: colors.sub, textTransform: 'uppercase', marginBottom: 6 }}>Предмет</div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 12 }}>
+                        <Chip active={!filterSubject} onClick={() => setFilterSubject(null)}>Все</Chip>
+                        {subjects.map(s => (
+                            <Chip key={s.id} active={filterSubject === s.id} onClick={() => setFilterSubject(s.id)}>{s.name}</Chip>
+                        ))}
+                    </div>
+
+
+                    <div style={{ fontSize: 10, fontWeight: 600, color: colors.sub, textTransform: 'uppercase', marginBottom: 6 }}>Статус</div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                        <Chip active={filterStatus === 'all'} onClick={() => setFilterStatus('all')}>Все</Chip>
+                        <Chip active={filterStatus === 'submitted'} onClick={() => setFilterStatus('submitted')}>Сдано</Chip>
+                        <Chip active={filterStatus === 'pending'} onClick={() => setFilterStatus('pending')}>Не сдано</Chip>
+                    </div>
                 </div>
-                {loading ? <p className="text-gray-400">Загрузка...</p> : labs.length === 0 ? <p className="text-gray-400">Нет работ</p> :
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {labs.map(lab => {
-                            const s = dl(lab.deadline);
-                            return (
-                                <div key={lab.id} onClick={() => openSide(lab.id)}
-                                     className="bg-white rounded-xl p-5 shadow-sm border hover:shadow-md cursor-pointer transition-all">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${lab.submitted ? 'bg-green-100 text-green-700' : s.c === 'red' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                                            {lab.submitted ? 'Сдано' : s.c === 'red' ? 'Просрочено' : 'Активно'}</span>
-                                        {lab.grade && <span className="text-yellow-500 font-bold text-sm">⭐{lab.grade}</span>}
-                                    </div>
-                                    <h3 className="font-semibold mb-1">{lab.title}</h3>
-                                    <p className="text-xs text-gray-500 mb-3">{lab.subject_name} · {lab.teacher_name}</p>
-                                    <p className="text-xs text-gray-400">⏳ {lab.deadline} ({s.t})</p>
-                                </div>
-                            );
-                        })}
-                    </div>}
+
+                <div style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
+                    {loading ? <div style={{ textAlign: 'center', color: colors.sub, fontSize: 13, padding: 40 }}>Загрузка...</div>
+                        : labs.length === 0 ? <div style={{ textAlign: 'center', color: colors.sub, fontSize: 13, padding: 40 }}>Нет работ</div>
+                            : labs.map((lab, i) => (
+                                <LabCard key={lab.id} lab={lab} index={i} active={activeId === lab.id} onClick={() => openLab(lab.id)} />
+                            ))}
+                </div>
+                <div style={{ padding: '10px 20px', borderTop: `1px solid ${colors.border}`, fontSize: 11, color: colors.sub }}>
+                    Всего: {labs.length} &middot; Сдано: {labs.filter(l => l.submitted).length}
+                </div>
             </div>
 
-            {sideOpen && (
-                <div className="w-[450px] bg-white border-l shadow-lg p-6 overflow-y-auto max-h-screen">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-bold">Детали</h2>
-                        <button onClick={() => setSideOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+
+            <div style={{ flex: 1, overflow: 'auto', padding: 40 }}>
+                {!activeLab ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: colors.sub, fontSize: 14 }}>
+                        Выберите лабораторную работу в боковой панели
                     </div>
-                    {loadingDetail ? <p className="text-gray-400">Загрузка...</p> : detail && (
-                        <div className="space-y-5">
-                            <div>
-                                <h3 className="font-semibold text-lg">{detail.title}</h3>
-                                <p className="text-sm text-gray-500">{detail.subject_name} · {detail.teacher_name}</p>
+                ) : loadingD ? (
+                    <div style={{ maxWidth: 640, margin: '0 auto', color: colors.sub, fontSize: 14 }}>Загрузка...</div>
+                ) : detail && (
+                    <div style={{ maxWidth: 640, margin: '0 auto' }}>
+
+                        <div style={{ marginBottom: 28 }}>
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: colors.sub, background: '#f3f4f6', padding: '3px 10px', borderRadius: 6 }}>Лабораторная работа</span>
+                                {detail.is_group && <span style={{ fontSize: 10, fontWeight: 700, background: '#ede9fe', color: '#7c3aed', padding: '3px 10px', borderRadius: 6 }}>Командная</span>}
+                                <StatusBadge submitted={!!submission} deadline={detail.deadline} />
                             </div>
-                            <div className="flex gap-3 text-sm">
-                                <div className="bg-blue-50 px-3 py-2 rounded-lg flex-1"><span className="text-blue-600">Выдано</span><p className="font-medium">{detail.issued_date}</p></div>
-                                <div className={`px-3 py-2 rounded-lg flex-1 ${dl(detail.deadline).c === 'red' ? 'bg-red-50' : 'bg-green-50'}`}><span className={dl(detail.deadline).c === 'red' ? 'text-red-600' : 'text-green-600'}>Дедлайн</span><p className="font-medium">{detail.deadline}</p></div>
+                            <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px', lineHeight: 1.2 }}>{detail.title}</h1>
+                            <p style={{ fontSize: 13, color: colors.sub, margin: 0 }}>{detail.subject_name} &middot; {detail.teacher_name}</p>
+                        </div>
+
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 28 }}>
+                            <div style={{ background: '#f9fafb', borderRadius: 12, padding: 16 }}>
+                                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, color: colors.sub, marginBottom: 4 }}>Выдано</div>
+                                <div style={{ fontSize: 15, fontWeight: 600 }}>{fmt(detail.issued_date)}</div>
                             </div>
-                            {detail.description && <p className="text-sm text-gray-600">{detail.description}</p>}
-                            {detail.materials?.length > 0 && (
-                                <div>
-                                    <p className="font-medium text-sm mb-2">📚 Материалы</p>
-                                    {detail.materials.map((m, i) => (
-                                        <a key={i} href={m.material_url} target="_blank" className="block text-sm text-blue-600 hover:underline py-1">📎 {m.title || m.material_url}</a>
-                                    ))}
-                                </div>
-                            )}
-                            {detail.is_group && groupmates.length > 0 && (
-                                <div>
-                                    <p className="font-medium text-sm mb-2">👥 Напарники</p>
-                                    {groupmates.map(g => (
-                                        <div key={g.id} className="flex items-center gap-2 py-1 text-sm">
-                                            <div className="w-7 h-7 bg-purple-200 rounded-full flex items-center justify-center text-xs font-bold">{g.name[0]}</div>
-                                            {g.name}
+                            <div style={{ background: isOverdue(detail.deadline) && !submission ? '#fef2f2' : '#f9fafb', borderRadius: 12, padding: 16 }}>
+                                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, color: isOverdue(detail.deadline) && !submission ? '#ef4444' : colors.sub, marginBottom: 4 }}>Дедлайн</div>
+                                <div style={{ fontSize: 15, fontWeight: 600, color: isOverdue(detail.deadline) && !submission ? '#ef4444' : colors.text }}>{fmt(detail.deadline)}</div>
+                            </div>
+                        </div>
+
+
+                        {detail.description && <Sec title="Описание задания"><p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#4b5563' }}>{detail.description}</p></Sec>}
+
+
+                        {detail.materials?.length > 0 && (
+                            <Sec title="Теоретические материалы">
+                                {detail.materials.map((m, i) => (
+                                    <a key={i} href={m.material_url} target="_blank" rel="noopener noreferrer" style={{
+                                        display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
+                                        background: colors.white, borderRadius: 10, border: `1px solid ${colors.border}`,
+                                        marginBottom: 8, textDecoration: 'none', color: colors.text, fontSize: 13
+                                    }}>
+                                        <span style={{ color: '#3b82f6', fontWeight: 500 }}>{m.title || m.material_url}</span>
+                                    </a>
+                                ))}
+                            </Sec>
+                        )}
+
+
+                        {detail.is_group && mates.length > 0 && (
+                            <Sec title="Состав команды">
+                                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                    {mates.map(m => (
+                                        <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#ede9fe', borderRadius: 999, padding: '6px 14px', fontSize: 13 }}>
+                                            <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#c4b5fd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 11, color: '#5b21b6' }}>{m.name[0]}</div>
+                                            {m.name}
                                         </div>
                                     ))}
                                 </div>
-                            )}
-                            <div className="border-t pt-4">
-                                <p className="font-medium text-sm mb-2">{submission ? 'Обновить' : 'Отправить'} решение</p>
-                                <textarea value={text} onChange={e => setText(e.target.value)} rows={3} className="w-full border rounded-lg p-2 text-sm mb-2" placeholder="Текст решения..." />
-                                <div className="flex items-center gap-2 mb-3">
-                                    <label className="text-sm cursor-pointer bg-gray-100 px-3 py-1.5 rounded-lg hover:bg-gray-200">📁 {file ? file.name : 'Файл'}<input type="file" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} /></label>
-                                    {file && <button onClick={() => setFile(null)} className="text-red-500 text-sm">Удалить</button>}
+                            </Sec>
+                        )}
+
+                        <Sec title={submission ? 'Обновить комментарий' : 'Оставить комментарий'}>
+                            <textarea value={comment} onChange={e => setComment(e.target.value)} rows={4}
+                                      style={{ width: '100%', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 12, fontSize: 13, resize: 'vertical', marginBottom: 12, boxSizing: 'border-box' }}
+                                      placeholder="Комментарий к решению..." />
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <button onClick={() => fileInputRef.current?.click()} style={{
+                                        cursor: 'pointer', fontSize: 13, color: '#6b7280', background: '#f3f4f6',
+                                        padding: '6px 14px', borderRadius: 8, border: 'none'
+                                    }}>
+                                        {file ? file.name : 'Прикрепить файл'}
+                                    </button>
+                                    <input ref={fileInputRef} type="file" style={{ display: 'none' }}
+                                           onChange={e => setFile(e.target.files?.[0] || null)} />
+                                    {file && <button onClick={() => setFile(null)} style={{ border: 'none', background: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer' }}>Удалить</button>}
                                 </div>
-                                <button onClick={send} disabled={sending || (!text && !file)} className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                                    {sending ? 'Отправка...' : submission ? 'Обновить' : 'Отправить'}
-                                </button>
+                                <button onClick={send} disabled={sending || (!comment && !file)} style={{
+                                    padding: '8px 20px', background: colors.accent, color: '#fff', border: 'none', borderRadius: 8,
+                                    fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: sending ? 0.5 : 1
+                                }}>{sending ? 'Отправка...' : submission ? 'Обновить' : 'Отправить'}</button>
                             </div>
-                            {submission && (
-                                <div className="bg-green-50 p-3 rounded-lg text-sm">
-                                    <p className="font-medium text-green-800">✅ Отправлено: {submission.submitted_at}</p>
-                                    {submission.submission_text && <p className="mt-1">{submission.submission_text}</p>}
-                                    {submission.file_path && <a href={submission.file_path} target="_blank" className="text-blue-600 block mt-1">📄 Скачать файл</a>}
+                        </Sec>
+
+
+                        {submission && (
+                            <Sec title="Отправленное решение">
+                                <div style={{ background: '#ecfdf5', borderRadius: 12, padding: 16, border: '1px solid #a7f3d0' }}>
+                                    <div style={{ fontSize: 12, color: '#059669', marginBottom: 8 }}>Отправлено {new Date(submission.submitted_at).toLocaleString('ru-RU')}</div>
+                                    {submission.submission_text && <div style={{ background: '#fff', borderRadius: 8, padding: 12, fontSize: 13, color: '#374151', marginBottom: 8 }}>{submission.submission_text}</div>}
+                                    {submission.file_path && (
+                                        <button onClick={() => downloadFile(submission.file_path)} style={{
+                                            background: 'none', border: 'none', color: '#3b82f6', fontSize: 13, cursor: 'pointer',
+                                            textDecoration: 'underline', padding: 0
+                                        }}>
+                                            Скачать прикреплённый файл
+                                        </button>
+                                    )}
                                 </div>
-                            )}
-                            {grade && (
-                                <div className="bg-yellow-50 p-3 rounded-lg text-sm">
-                                    <p className="font-medium text-yellow-800">⭐ Оценка: {grade.grade}/10</p>
-                                    {grade.comment && <p className="mt-1">💬 {grade.comment}</p>}
-                                    <p className="text-gray-400 text-xs mt-1">{grade.graded_at}</p>
+                            </Sec>
+                        )}
+
+                        {grade && (
+                            <Sec title="Оценка преподавателя">
+                                <div style={{ background: '#fffbeb', borderRadius: 12, padding: 16, border: '1px solid #fde68a' }}>
+                                    <div style={{ fontSize: 36, fontWeight: 700, color: '#d97706' }}>{grade.grade}<span style={{ fontSize: 16, color: '#92400e' }}>/10</span></div>
+                                    {grade.comment && <div style={{ background: '#fff', borderRadius: 8, padding: 12, marginTop: 10, fontSize: 13, color: '#374151' }}>{grade.comment}</div>}
+                                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>{fmt(grade.graded_at)}</div>
                                 </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
-            {msg && (
-                <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg text-sm shadow-lg flex gap-2">
-                    {msg} <button onClick={() => setMsg('')}>&times;</button>
-                </div>
-            )}
+                            </Sec>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

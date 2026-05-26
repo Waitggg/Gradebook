@@ -41,54 +41,58 @@ function Header() {
     navLinks.push({ path: '/manage-students', label: 'Управление'});
   }
 
+  if (user?.role === 'student') {
+    navLinks.push({ path: '/labs', label: 'Лабораторные работы' });
+  }
+
   const isActive = (path: string) => {
     return location.pathname === path;
   };
 
   return (
-    <header className="header">
-      <div className="header-container">
-        <Link to="/profile" className="logo">
-          <span className="logo-text">GradeBook</span>
-        </Link>
+      <header className="header">
+        <div className="header-container">
+          <Link to="/profile" className="logo">
+            <span className="logo-text">GradeBook</span>
+          </Link>
 
-        <button 
-          className="mobile-menu-btn"
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-        >
-          ☰
-        </button>
+          <button
+              className="mobile-menu-btn"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+          >
+            ☰
+          </button>
 
-        <nav className={`nav-menu ${isMenuOpen ? 'open' : ''}`}>
-          {navLinks.map((link) => (
-            <Link
-              key={link.path}
-              to={link.path}
-              className={`nav-link ${isActive(link.path) ? 'active' : ''}`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <span>{link.label}</span>
-            </Link>
-          ))}
-        </nav>
-        <div className="user-menu">
-        <a href='/profile' className="user-menu-link">
-          <div className="user-info">
+          <nav className={`nav-menu ${isMenuOpen ? 'open' : ''}`}>
+            {navLinks.map((link) => (
+                <Link
+                    key={link.path}
+                    to={link.path}
+                    className={`nav-link ${isActive(link.path) ? 'active' : ''}`}
+                    onClick={() => setIsMenuOpen(false)}
+                >
+                  <span>{link.label}</span>
+                </Link>
+            ))}
+          </nav>
+          <div className="user-menu">
+            <a href='/profile' className="user-menu-link">
+              <div className="user-info">
             <span className="user-avatar">
               {user?.name?.charAt(0)?.toUpperCase() || '?'}
             </span>
-            <div className="user-details">
-              <span className="user-name">{user?.name}</span>
-              <span className="user-role">
+                <div className="user-details">
+                  <span className="user-name">{user?.name}</span>
+                  <span className="user-role">
                 {user?.role === 'teacher' ? 'Учитель' : 'Ученик'}
               </span>
-            </div>
-          </div>
+                </div>
+              </div>
             </a>
+          </div>
         </div>
-      </div>
 
-      <style>{`
+        <style>{`
         .header {
           background: white;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -276,7 +280,7 @@ function Header() {
         }
         }
       `}</style>
-    </header>
+      </header>
   );
 }
 

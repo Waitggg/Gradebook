@@ -7,7 +7,7 @@ import {
     getStudentLabById,
     submitLabWork,
     getMySubmission,
-    getMyGrade
+    getMyGrade, getSubjects
 } from '../controllers/lab_controller';
 
 const router = Router();
@@ -28,10 +28,12 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
+router.get('/subjects', getSubjects);
 router.get('/', getStudentLabs);
 router.get('/:id', getStudentLabById);
 router.post('/:id/submit', upload.single('file'), submitLabWork);
 router.get('/:id/submission', getMySubmission);
 router.get('/:id/grade', getMyGrade);
+
 
 export default router;

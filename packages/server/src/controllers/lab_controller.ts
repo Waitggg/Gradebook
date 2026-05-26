@@ -274,3 +274,12 @@ export async function getMyGrade(req: Request, res: Response): Promise<Response>
         return res.status(500).json({ success: false, message: 'Ошибка' });
     }
 }
+
+export async function getSubjects(req: Request, res: Response): Promise<Response> {
+    try {
+        const result = await pool.query('SELECT id, name FROM subjects ORDER BY name');
+        return res.json({ success: true, subjects: result.rows });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Ошибка' });
+    }
+}
