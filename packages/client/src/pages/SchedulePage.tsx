@@ -500,7 +500,6 @@ const getChangeDisplay = (item: ScheduleItem) => {
           </div>
           
           <div className="class-selector-mini">
-            <label className="filter-label">Класс:</label>
             <select
               className="filter-select"
               value={selectedClass || ''}
@@ -697,8 +696,8 @@ const getChangeDisplay = (item: ScheduleItem) => {
   gap: 16px;
   margin-bottom: 24px;
   flex-wrap: wrap;
-  align-items: flex-end;
-}
+  align-items: baseline;
+  }
 
 .date-selector {
   display: flex;
@@ -720,6 +719,8 @@ const getChangeDisplay = (item: ScheduleItem) => {
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 14px;
+  background: white;
+  color: black;
 }
 
 .class-selector-mini {
@@ -824,6 +825,7 @@ const getChangeDisplay = (item: ScheduleItem) => {
         .class-selector {
           margin-bottom: 20px;
           max-width: 300px;
+          color: black;
         }
         
         .filter-label {

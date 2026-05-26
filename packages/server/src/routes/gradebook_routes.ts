@@ -40,12 +40,13 @@ import {
   deleteTeacher,
   updateSubject,
   deleteSubject,
-  getTeacherSchedule,
   deleteScheduleItem,
   deleteGradeByDate,
   deleteAttendanceByDate,
   getTeacherScheduleWithChanges,
-  getChangesForSubject
+  getChangesForSubject,
+  getClassGrades,
+  getClassAverages
 } from '../controllers/gradebook_controller.js';
 
 const router = Router();
@@ -63,6 +64,9 @@ router.get('/myClasses', getMyClasses);
 router.post('/classes', createClass);
 router.put('/classes/:id', updateClass);
 router.delete('/classes/:id', deleteClass);
+
+router.get('/classes/:classId/grades', getClassGrades);
+router.get('/classes/:classId/averages', getClassAverages);
 
 router.get('/students', getAllStudents);
 router.post('/students', createStudent);

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import GradeNotification from './Notification';
 
 interface User {
   id: string;
@@ -72,6 +73,7 @@ function Header() {
           ))}
         </nav>
         <div className="user-menu">
+            <GradeNotification />
         <a href='/profile' className="user-menu-link">
           <div className="user-info">
             <span className="user-avatar">

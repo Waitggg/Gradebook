@@ -142,6 +142,7 @@ code {
   font-size: 14px;
   background: white;
   cursor: pointer;
+  color: black;
 }
 
 .filter-select:focus {

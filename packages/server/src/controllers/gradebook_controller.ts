@@ -214,7 +214,7 @@ export async function addStudentToClass(req: Request, res: Response): Promise<Re
   }
 }
 
-export async function addGrade(req: Request<{}, {}, GradeBody>, res: Response): Promise<Response> {
+export async function addGrade(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
   if (!session.userId || session.userRole !== 'teacher') {
     return res.status(403).json({ success: false, message: 'Доступ запрещен' });
@@ -251,7 +251,8 @@ export async function addGrade(req: Request<{}, {}, GradeBody>, res: Response): 
              teacher_id = $2,
              semester = $3,
              comment = $4,
-             grade_type = $5
+             grade_type = $5,
+             updated_at = CURRENT_TIMESTAMP
          WHERE student_id = $6 AND subject_id = $7 AND grade_date::date = $8::date
          RETURNING id, student_id, subject_id, grade, 
                    to_char(grade_date, 'YYYY-MM-DD') as grade_date, 
@@ -269,6 +270,35 @@ export async function addGrade(req: Request<{}, {}, GradeBody>, res: Response): 
       );
     }
 
+    const subjectInfo = await pool.query(
+      'SELECT name FROM subjects WHERE id = $1',
+      [subject_id]
+    );
+    
+    const teacherInfo = await pool.query(
+      'SELECT name FROM users WHERE id = $1',
+      [session.userId]
+    );
+
+     const io = req.app.get('io');
+    const userSockets = req.app.get('userSockets');
+    
+        const studentSocketId = userSockets.get(student_id);
+    
+    if (studentSocketId && io) {
+      const notificationData = {
+        id: result.rows[0].id,
+        grade: grade,
+        subject_name: subjectInfo.rows[0]?.name || 'Предмет',
+        teacher_name: teacherInfo.rows[0]?.name || 'Учитель',
+        date: targetDate,
+        grade_type: grade_type,
+        comment: comment || null,
+        timestamp: new Date().toISOString()
+      };
+      
+      io.to(studentSocketId).emit('new_grade', notificationData);
+    }
     return res.status(201).json({ success: true, grade: result.rows[0] });
   } catch (error) {
     console.error('Add grade error:', error);
@@ -677,6 +707,63 @@ export async function getChangesForSubject(req: Request, res: Response): Promise
     return res.status(500).json({ success: false, message: 'Ошибка получения изменений' });
   }
 }
+
+export async function getClassGrades(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  const classId = req.params.classId;
+
+  try {
+    const result = await pool.query(
+      `SELECT g.id, g.grade, to_char(g.grade_date, 'YYYY-MM-DD') as date,
+              s.name as subject_name, u.name as student_name
+       FROM grades g
+       JOIN users u ON g.student_id = u.id
+       JOIN subjects s ON g.subject_id = s.id
+       JOIN student_classes sc ON u.id = sc.student_id
+       WHERE sc.class_id = $1
+       ORDER BY g.grade_date DESC, s.name`,
+      [classId]
+    );
+    return res.json({ success: true, grades: result.rows });
+  } catch (error) {
+    console.error('Get class grades error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка получения оценок' });
+  }
+}
+
+export async function getClassAverages(req: Request, res: Response): Promise<Response> {
+  const session = req.session as SessionWithUser;
+  if (!session.userId || session.userRole !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  }
+
+  const classId = req.params.classId;
+
+  try {
+    const result = await pool.query(
+      `SELECT s.name as subject_name,
+              AVG(g.grade) as average_grade,
+              COUNT(g.id) as grades_count
+       FROM grades g
+       JOIN users u ON g.student_id = u.id
+       JOIN subjects s ON g.subject_id = s.id
+       JOIN student_classes sc ON u.id = sc.student_id
+       WHERE sc.class_id = $1
+       GROUP BY s.id, s.name
+       ORDER BY s.name`,
+      [classId]
+    );
+    return res.json({ success: true, averages: result.rows });
+  } catch (error) {
+    console.error('Get class averages error:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка получения средних баллов' });
+  }
+}
+
 export async function getTeacherSchedule(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
   if (!session.userId || session.userRole !== 'teacher') {
