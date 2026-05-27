@@ -123,7 +123,6 @@ function CourseProgramPage() {
     return;
   }
   
-  // ✅ Проверка на существующий номер занятия
   const existingLesson = lessons.find(l => l.lesson_number === lessonForm.lesson_number);
   if (existingLesson) {
     alert(`❌ Занятие с номером ${lessonForm.lesson_number} уже существует. Пожалуйста, выберите другой номер.`);
@@ -161,7 +160,6 @@ function CourseProgramPage() {
   const handleUpdateLesson = async () => {
   if (!editingLesson) return;
   
-  // ✅ При редактировании проверяем, не пытается ли пользователь сменить номер на уже существующий
   if (lessonForm.lesson_number !== editingLesson.lesson_number) {
     const existingLesson = lessons.find(l => 
       l.lesson_number === lessonForm.lesson_number && l.id !== editingLesson.id
@@ -255,7 +253,6 @@ function CourseProgramPage() {
     }
   };
 
-  // Export/import helpers (Excel .xlsx)
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleExportProgram = async () => {
@@ -267,7 +264,6 @@ function CourseProgramPage() {
     try {
       const XLSX: any = await import('xlsx');
 
-      // Program sheet (single row)
       const progSheetData = [
         {
           subjectId: Number(subjectId),
@@ -278,7 +274,6 @@ function CourseProgramPage() {
       ];
       const wsProg = XLSX.utils.json_to_sheet(progSheetData);
 
-      // Lessons sheet
       const lessonsData = lessons.map((l) => ({
         lesson_number: l.lesson_number,
         lesson_type: l.lesson_type,
@@ -294,7 +289,6 @@ function CourseProgramPage() {
       XLSX.utils.book_append_sheet(wb, wsLessons, 'Lessons');
 
       const filename = `course_program_${subjectId}_${classId}.xlsx`;
-      // writeFile works in browser when using the xlsx package
       XLSX.writeFile(wb, filename);
     } catch (err) {
       console.error('Export XLSX error', err);
@@ -324,7 +318,6 @@ function CourseProgramPage() {
 
     if (program && !confirm('Текущая программа будет заменена. Продолжить?')) return;
 
-    // Create/update program
     const resp = await fetch('/api/course/program', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -345,12 +338,10 @@ function CourseProgramPage() {
 
     const newProgram = resJson.program;
 
-    // Lessons
     const lessonsSheet = wb.Sheets['Lessons'] || null;
     if (lessonsSheet) {
       const lessonsArr = XLSX.utils.sheet_to_json(lessonsSheet as any) as any[];
       
-      // ✅ Проверка на дубликаты номеров занятий
       const lessonNumbers = new Set<number>();
       const duplicateNumbers: number[] = [];
       
@@ -368,7 +359,6 @@ function CourseProgramPage() {
         return;
       }
       
-      // Сортируем занятия по номеру перед импортом
       const sortedLessons = [...lessonsArr].sort((a, b) => 
         Number(a.lesson_number) - Number(b.lesson_number)
       );
@@ -378,7 +368,6 @@ function CourseProgramPage() {
       for (const l of sortedLessons) {
         const lessonNumber = Number(l.lesson_number);
         
-        // Проверяем, существует ли уже занятие с таким номером в программе
         const existingLesson = lessons.find(existing => existing.lesson_number === lessonNumber);
         
         if (existingLesson) {
@@ -846,7 +835,6 @@ function CourseProgramPage() {
           gap: 16px;
         }
         
-        /* Сетка для grid режима: компактная сетка с максимум 3 карточками в ряду */
         .lessons-container.grid {
           display: grid;
           grid-template-columns: repeat(1, 1fr);
