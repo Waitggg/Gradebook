@@ -6,6 +6,8 @@ import ProfilePage from './pages/ProfilePage';
 import GradebookPage from './pages/GradebookPage';
 import SchedulePage from './pages/SchedulePage';
 import ManageStudentsPage from './pages/ManageStudentsPage';
+import CourseProgramPage from './pages/CourseProgramPage';
+
 
 function App() {
   const [isAuth, setIsAuth] = useState<boolean>(false);
@@ -71,6 +73,11 @@ function App() {
             <ManageStudentsPage /> : 
             <Navigate to="/login" replace />
         } />
+        <Route path="/course/:subjectId/:classId" element={
+  isAuth ? 
+    <CourseProgramPage /> : 
+    <Navigate to="/login" replace />
+} />
       </Routes>
     </BrowserRouter>
   );

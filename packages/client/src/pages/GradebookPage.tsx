@@ -665,6 +665,16 @@ const loadStudentData = async () => {
             </select>
           </div>
         </div>
+        {selectedClass && selectedSubject && (
+  <div className="course-program-link">
+    <button 
+      className="btn-course"
+      onClick={() => navigate(`/course/${selectedSubject}/${selectedClass}`)}
+    >
+      📋 Программа курса
+    </button>
+  </div>
+)}
         
 {selectedClass && selectedSubject && monthDates.length > 0 && studentsGrades.length > 0 && (
   <div className="gradebook-table-wrapper">
@@ -1327,6 +1337,20 @@ const loadStudentData = async () => {
       min-width: 50px;
     }
   }
+    .btn-course {
+  padding: 8px 16px;
+  background: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.btn-course:hover {
+  background: #7c3aed;
+}
 `}</style>
     </div>
   );

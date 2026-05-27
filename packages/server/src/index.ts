@@ -6,6 +6,7 @@ import path from 'path';
 import session from 'express-session';
 import authRoutes from './routes/auth_routes';
 import gradebookRoutes from './routes/gradebook_routes';
+import courseRoutes from './routes/course_routes';
 import scheduleRoutes from './routes/schedule_routes';
 
 dotenv.config();
@@ -45,3 +46,4 @@ app.use('/api/schedule', scheduleRoutes);
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
+app.use('/api/course', courseRoutes);
