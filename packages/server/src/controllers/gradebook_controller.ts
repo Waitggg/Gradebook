@@ -1,14 +1,7 @@
 import { Request, Response } from 'express';
-import pool from '../db/pool';
-import { QueryResult } from 'pg';
 import bcrypt from 'bcrypt';
-
-interface SessionWithUser {
-  userId?: string;
-  userEmail?: string;
-  userRole?: 'teacher' | 'student';
-  destroy: (callback: (err: Error | null) => void) => void;
-}
+import { BaseController } from './base_controller';
+import { BaseService } from '../services/base_service';
 
 interface SubjectBody {
   name: string;
@@ -57,347 +50,154 @@ interface ScheduleBody {
   room?: string;
 }
 
-export async function getAllSubjects(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
+class GradebookService extends BaseService {
+  async getAllSubjects(): Promise<any[]> {
+    return this.query('SELECT id, name, description, created_at FROM subjects ORDER BY name');
   }
 
-  try {
-    const result: QueryResult = await pool.query(
-      'SELECT id, name, description, created_at FROM subjects ORDER BY name'
-    );
-    return res.json({ success: true, subjects: result.rows });
-  } catch (error) {
-    console.error('Get subjects error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения предметов' });
-  }
-}
-
-export async function createSubject(req: Request<{}, {}, SubjectBody>, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const { name, description } = req.body;
-
-  if (!name || name.trim() === '') {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Название предмета обязательно' 
-    });
+    async getMySubjects(userId: string, role: string): Promise<any[]> {
+    if (role === 'teacher') {
+      return this.query(
+        `SELECT DISTINCT s.id, s.name, s.description, array_agg(DISTINCT c.name) as classes
+         FROM teacher_subjects ts
+         JOIN subjects s ON ts.subject_id = s.id
+         JOIN classes c ON ts.class_id = c.id
+         WHERE ts.teacher_id = $1
+         GROUP BY s.id`,
+        [userId]
+      );
+    } else {
+      return this.query(
+        `SELECT DISTINCT s.id, s.name, s.description
+         FROM student_classes sc
+         INNER JOIN teacher_subjects ts ON sc.class_id = ts.class_id
+         INNER JOIN subjects s ON ts.subject_id = s.id
+         WHERE sc.student_id = $1`,
+        [userId]
+      );
+    }
   }
 
-  try {
-    const result: QueryResult = await pool.query(
+
+  async createSubject(name: string, description: string | null): Promise<any> {
+    return this.single(
       'INSERT INTO subjects (name, description) VALUES ($1, $2) RETURNING *',
-      [name.trim(), description || null] 
+      [name.trim(), description]
     );
-        
-    return res.status(201).json({ 
-      success: true, 
-      subject: result.rows[0] 
-    });
-  } catch (error) {
-    console.error('Create subject error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Ошибка создания предмета' 
-    });
-  }
-}
-
-export async function getAllClasses(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
   }
 
-  try {
-    const result: QueryResult = await pool.query(
-      'SELECT id, name, year, created_at FROM classes ORDER BY year DESC, name'
-    );
-    return res.json({ success: true, classes: result.rows });
-  } catch (error) {
-    console.error('Get classes error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения классов' });
-  }
-}
-
-export async function createClass(req: Request<{}, {}, ClassBody>, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  async getAllClasses(): Promise<any[]> {
+    return this.query('SELECT id, name, year, created_at FROM classes ORDER BY year DESC, name');
   }
 
-  const { name, year } = req.body;
-
-  try {
-    const result: QueryResult = await pool.query(
+  async createClass(name: string, year: number): Promise<any> {
+    return this.single(
       'INSERT INTO classes (name, year) VALUES ($1, $2) RETURNING id, name, year, created_at',
       [name, year]
     );
-    return res.status(201).json({ success: true, class: result.rows[0] });
-  } catch (error) {
-    console.error('Create class error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка создания класса' });
-  }
-}
-
-export async function addStudentToClass(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
   }
 
-  const { student_id, class_id } = req.body;
-
-  if (!student_id || !class_id) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Необходимо указать student_id и class_id' 
-    });
+  async checkStudentExists(studentId: number): Promise<boolean> {
+    return this.exists('SELECT id FROM users WHERE id = $1 AND role = $2', [studentId, 'student']);
   }
 
-  try {
-    const studentCheck = await pool.query(
-      'SELECT id FROM users WHERE id = $1 AND role = $2',
-      [student_id, 'student']
-    );
-    
-    if (studentCheck.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Студент не найден' 
-      });
-    }
+  async checkClassExists(classId: number): Promise<boolean> {
+    return this.exists('SELECT id FROM classes WHERE id = $1', [classId]);
+  }
 
-    const classCheck = await pool.query(
-      'SELECT id FROM classes WHERE id = $1',
-      [class_id]
-    );
-    
-    if (classCheck.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Класс не найден' 
-      });
-    }
-
-    const result = await pool.query(
+  async addStudentToClass(studentId: number, classId: number): Promise<any> {
+    return this.single(
       `INSERT INTO student_classes (student_id, class_id) 
        VALUES ($1, $2) 
        ON CONFLICT (student_id, class_id) DO NOTHING
        RETURNING id, student_id, class_id, joined_at`,
-      [student_id, class_id]
+      [studentId, classId]
     );
-    
-    if (result.rows.length === 0) {
-      return res.status(409).json({ 
-        success: false, 
-        message: 'Студент уже привязан к этому классу' 
-      });
+  }
+
+  async getStudentGrades(studentId: string, subjectId?: string): Promise<any[]> {
+    if (subjectId) {
+      return this.query(
+        `SELECT g.id, g.grade, to_char(g.grade_date, 'YYYY-MM-DD') as grade_date,
+                g.semester, g.comment, g.grade_type, s.id as subject_id, s.name as subject_name
+         FROM grades g 
+         JOIN subjects s ON g.subject_id = s.id
+         WHERE g.student_id = $1 AND g.subject_id = $2
+         ORDER BY g.grade_date DESC, g.id DESC`,
+        [studentId, subjectId]
+      );
     }
-    
-    return res.status(201).json({ 
-      success: true, 
-      student_class: result.rows[0],
-      message: 'Студент успешно добавлен в класс'
-    });
-  } catch (error) {
-    console.error('Add student to class error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Ошибка привязки студента к классу' 
-    });
-  }
-}
-
-export async function addGrade(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    return this.query(
+      `SELECT g.id, g.grade, to_char(g.grade_date, 'YYYY-MM-DD') as grade_date,
+              g.semester, g.comment, g.grade_type, s.id as subject_id, s.name as subject_name
+       FROM grades g 
+       JOIN subjects s ON g.subject_id = s.id
+       WHERE g.student_id = $1
+       ORDER BY g.grade_date DESC, g.id DESC`,
+      [studentId]
+    );
   }
 
-  const {
-    student_id,
-    subject_id,
-    grade,
-    grade_date,
-    semester,
-    comment,
-    grade_type = 'classwork'
-  } = req.body;
+  async getAverageGrade(studentId: string): Promise<any[]> {
+    return this.query(
+      `SELECT s.id as subject_id, s.name as subject_name,
+       AVG(g.grade) as average_grade, COUNT(g.id) as grades_count
+       FROM grades g 
+       JOIN subjects s ON g.subject_id = s.id
+       WHERE g.student_id = $1
+       GROUP BY s.id, s.name 
+       ORDER BY s.name`,
+      [studentId]
+    );
+  }
 
-  const targetDate = grade_date || new Date().toISOString().split('T')[0];
-
-  try {
-    await pool.query(
-      'DELETE FROM attendance WHERE student_id = $1 AND subject_id = $2 AND date::date = $3::date',
-      [student_id, subject_id, targetDate]
+  async upsertGrade(data: any, teacherId: string, targetDate: string): Promise<any> {
+    const existing = await this.single(
+      `SELECT id FROM grades 
+       WHERE student_id = $1 AND subject_id = $2 AND grade_date::date = $3::date`,
+      [data.student_id, data.subject_id, targetDate]
     );
 
-    const existing = await pool.query(
-      `SELECT id FROM grades WHERE student_id = $1 AND subject_id = $2 AND grade_date::date = $3::date`,
-      [student_id, subject_id, targetDate]
-    );
-
-    let result: QueryResult;
-    if (existing.rows.length > 0) {
-      result = await pool.query(
+    if (existing) {
+      return this.single(
         `UPDATE grades
-         SET grade = $1,
-             teacher_id = $2,
-             semester = $3,
-             comment = $4,
-             grade_type = $5,
-             updated_at = CURRENT_TIMESTAMP
+         SET grade = $1, teacher_id = $2, semester = $3, comment = $4, 
+             grade_type = $5, updated_at = CURRENT_TIMESTAMP
          WHERE student_id = $6 AND subject_id = $7 AND grade_date::date = $8::date
          RETURNING id, student_id, subject_id, grade, 
                    to_char(grade_date, 'YYYY-MM-DD') as grade_date, 
                    semester, comment, grade_type`,
-        [grade, session.userId, semester, comment, grade_type, student_id, subject_id, targetDate]
-      );
-    } else {
-      result = await pool.query(
-        `INSERT INTO grades (student_id, subject_id, teacher_id, grade, grade_date, semester, comment, grade_type) 
-         VALUES ($1, $2, $3, $4, $5::date, $6, $7, $8) 
-         RETURNING id, student_id, subject_id, grade, 
-                   to_char(grade_date, 'YYYY-MM-DD') as grade_date, 
-                   semester, comment, grade_type`,
-        [student_id, subject_id, session.userId, grade, targetDate, semester, comment, grade_type]
+        [data.grade, teacherId, data.semester, data.comment, data.grade_type, 
+         data.student_id, data.subject_id, targetDate]
       );
     }
-
-    const subjectInfo = await pool.query(
-      'SELECT name FROM subjects WHERE id = $1',
-      [subject_id]
+    return this.single(
+      `INSERT INTO grades (student_id, subject_id, teacher_id, grade, grade_date, semester, comment, grade_type) 
+       VALUES ($1, $2, $3, $4, $5::date, $6, $7, $8) 
+       RETURNING id, student_id, subject_id, grade, 
+                 to_char(grade_date, 'YYYY-MM-DD') as grade_date, 
+                 semester, comment, grade_type`,
+      [data.student_id, data.subject_id, teacherId, data.grade, targetDate, 
+       data.semester, data.comment, data.grade_type]
     );
-    
-    const teacherInfo = await pool.query(
-      'SELECT name FROM users WHERE id = $1',
-      [session.userId]
-    );
-
-     const io = req.app.get('io');
-    const userSockets = req.app.get('userSockets');
-    
-        const studentSocketId = userSockets.get(student_id);
-    
-    if (studentSocketId && io) {
-      const notificationData = {
-        id: result.rows[0].id,
-        grade: grade,
-        subject_name: subjectInfo.rows[0]?.name || 'Предмет',
-        teacher_name: teacherInfo.rows[0]?.name || 'Учитель',
-        date: targetDate,
-        grade_type: grade_type,
-        comment: comment || null,
-        timestamp: new Date().toISOString()
-      };
-      
-      io.to(studentSocketId).emit('new_grade', notificationData);
-    }
-    return res.status(201).json({ success: true, grade: result.rows[0] });
-  } catch (error) {
-    console.error('Add grade error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка добавления оценки' });
-  }
-}
-
-export async function getStudentGrades(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
   }
 
-  const studentId = req.params.studentId || session.userId;
-  const subjectId = req.query.subject_id;
-
-  try {
-    let query: string;
-    let params: any[];
-    
-    if (subjectId) {
-      query = `
-        SELECT g.id, g.grade, 
-               to_char(g.grade_date, 'YYYY-MM-DD') as grade_date,
-               g.semester, g.comment, g.grade_type,
-               s.id as subject_id, s.name as subject_name
-        FROM grades g
-        JOIN subjects s ON g.subject_id = s.id
-        WHERE g.student_id = $1 AND g.subject_id = $2
-        ORDER BY g.grade_date DESC, g.id DESC
-      `;
-      params = [studentId, subjectId];
-    } else {
-      query = `
-        SELECT g.id, g.grade, 
-               to_char(g.grade_date, 'YYYY-MM-DD') as grade_date,
-               g.semester, g.comment, g.grade_type,
-               s.id as subject_id, s.name as subject_name
-        FROM grades g
-        JOIN subjects s ON g.subject_id = s.id
-        WHERE g.student_id = $1
-        ORDER BY g.grade_date DESC, g.id DESC
-      `;
-      params = [studentId];
-    }
-    
-    const result: QueryResult = await pool.query(query, params);
-    return res.json({ success: true, grades: result.rows });
-  } catch (error) {
-    console.error('Get student grades error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения оценок' });
-  }
-}
-
-export async function getAverageGrade(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
+  async getSubjectInfo(subjectId: number): Promise<any> {
+    return this.single('SELECT name FROM subjects WHERE id = $1', [subjectId]);
   }
 
-  const studentId = req.params.studentId || session.userId;
-
-  try {
-    const result: QueryResult = await pool.query(
-      `SELECT s.id as subject_id, s.name as subject_name,
-       AVG(g.grade) as average_grade, COUNT(g.id) as grades_count
-       FROM grades g
-       JOIN subjects s ON g.subject_id = s.id
-       WHERE g.student_id = $1
-       GROUP BY s.id, s.name
-       ORDER BY s.name`,
-      [studentId]
-    );
-    return res.json({ success: true, averages: result.rows });
-  } catch (error) {
-    console.error('Get average grade error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения среднего балла' });
-  }
-}
-
-export async function markAttendance(req: Request<{}, {}, AttendanceBody>, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  async getUserInfo(userId: string): Promise<any> {
+    return this.single('SELECT name FROM users WHERE id = $1', [userId]);
   }
 
-  const { student_id, subject_id, date, status } = req.body;
-  
-  const targetDate = date || new Date().toISOString().split('T')[0];
-
-  try {
+  async markAttendance(studentId: number, subjectId: number, targetDate: string, status: string): Promise<any> {
     if (status === 'absent') {
-      await pool.query(
+      await this.mutation(
         'DELETE FROM grades WHERE student_id = $1 AND subject_id = $2 AND grade_date::date = $3::date',
-        [student_id, subject_id, targetDate]
+        [studentId, subjectId, targetDate]
       );
     }
-
-    const result: QueryResult = await pool.query(
+    return this.single(
       `INSERT INTO attendance (student_id, subject_id, date, status) 
        VALUES ($1, $2, $3::date, $4) 
        ON CONFLICT (student_id, subject_id, date) 
@@ -405,92 +205,42 @@ export async function markAttendance(req: Request<{}, {}, AttendanceBody>, res: 
        RETURNING id, student_id, subject_id, 
                  to_char(date, 'YYYY-MM-DD') as date, 
                  status`,
-      [student_id, subject_id, targetDate, status]
+      [studentId, subjectId, targetDate, status]
     );
-    return res.status(201).json({ success: true, attendance: result.rows[0] });
-  } catch (error) {
-    console.error('Mark attendance error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка отметки посещаемости' });
-  }
-}
-
-export async function getStudentAttendance(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
   }
 
-  const studentId = req.params.studentId || session.userId;
-  const subjectId = req.query.subject_id;
-
-  try {
-    let query: string;
-    let params: any[];
-    
+  async getStudentAttendance(studentId: string, subjectId?: string): Promise<any[]> {
     if (subjectId) {
-      query = `
-        SELECT a.id, 
-               to_char(a.date, 'YYYY-MM-DD') as date,
-               a.status, 
-               s.name as subject_name
-        FROM attendance a
-        JOIN subjects s ON a.subject_id = s.id
-        WHERE a.student_id = $1 AND a.subject_id = $2
-        ORDER BY a.date DESC
-      `;
-      params = [studentId, subjectId];
-    } else {
-      query = `
-        SELECT a.id, 
-               to_char(a.date, 'YYYY-MM-DD') as date,
-               a.status, 
-               s.name as subject_name
-        FROM attendance a
-        JOIN subjects s ON a.subject_id = s.id
-        WHERE a.student_id = $1
-        ORDER BY a.date DESC
-      `;
-      params = [studentId];
+      return this.query(
+        `SELECT a.id, to_char(a.date, 'YYYY-MM-DD') as date, a.status, s.name as subject_name
+         FROM attendance a 
+         JOIN subjects s ON a.subject_id = s.id
+         WHERE a.student_id = $1 AND a.subject_id = $2
+         ORDER BY a.date DESC`,
+        [studentId, subjectId]
+      );
     }
-
-    const result: QueryResult = await pool.query(query, params);
-    return res.json({ success: true, attendance: result.rows });
-  } catch (error) {
-    console.error('Get student attendance error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения посещаемости' });
-  }
-}
-
-export async function createHomework(req: Request<{}, {}, HomeworkBody>, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    return this.query(
+      `SELECT a.id, to_char(a.date, 'YYYY-MM-DD') as date, a.status, s.name as subject_name
+       FROM attendance a 
+       JOIN subjects s ON a.subject_id = s.id
+       WHERE a.student_id = $1
+       ORDER BY a.date DESC`,
+      [studentId]
+    );
   }
 
-  const { subject_id, title, description, due_date } = req.body;
-
-  try {
-    const result: QueryResult = await pool.query(
+  async createHomework(subjectId: number, teacherId: string, title: string, description: string, dueDate: Date): Promise<any> {
+    return this.single(
       `INSERT INTO homework (subject_id, teacher_id, title, description, due_date) 
        VALUES ($1, $2, $3, $4, $5) 
        RETURNING id, subject_id, teacher_id, title, description, due_date, created_at`,
-      [subject_id, session.userId, title, description, due_date]
+      [subjectId, teacherId, title, description, dueDate]
     );
-    return res.status(201).json({ success: true, homework: result.rows[0] });
-  } catch (error) {
-    console.error('Create homework error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка создания домашнего задания' });
-  }
-}
-
-export async function getHomework(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
   }
 
-  try {
-    const result: QueryResult = await pool.query(
+  async getHomework(): Promise<any[]> {
+    return this.query(
       `SELECT h.id, h.title, h.description, h.due_date, h.created_at,
               s.name as subject_name, u.name as teacher_name
        FROM homework h
@@ -499,99 +249,634 @@ export async function getHomework(req: Request, res: Response): Promise<Response
        WHERE h.due_date >= CURRENT_DATE
        ORDER BY h.due_date ASC`
     );
-    return res.json({ success: true, homework: result.rows });
-  } catch (error) {
-    console.error('Get homework error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения заданий' });
-  }
-}
-
-export async function submitHomework(req: Request<{ id: string }, {}, HomeworkSubmissionBody>, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
   }
 
-  const homeworkId = parseInt(req.params.id);
-  const { submission_text } = req.body;
-
-  try {
-    const result: QueryResult = await pool.query(
+  async submitHomework(homeworkId: number, studentId: string, submissionText: string): Promise<any> {
+    return this.single(
       `INSERT INTO homework_submissions (homework_id, student_id, submission_text) 
        VALUES ($1, $2, $3) 
        ON CONFLICT (homework_id, student_id) 
        DO UPDATE SET submission_text = $3, submitted_at = CURRENT_TIMESTAMP
        RETURNING id, homework_id, student_id, submission_text, submitted_at`,
-      [homeworkId, session.userId, submission_text]
+      [homeworkId, studentId, submissionText]
     );
-    return res.status(201).json({ success: true, submission: result.rows[0] });
-  } catch (error) {
-    console.error('Submit homework error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка отправки задания' });
-  }
-}
-
-export async function getTeacherScheduleWithChanges(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
   }
 
-  const targetDate = req.query.date as string || new Date().toISOString().split('T')[0];
-
-  try {
-    const scheduleResult: QueryResult = await pool.query(
+  async getTeacherSchedule(teacherId: string): Promise<any[]> {
+    return this.query(
       `SELECT s.id, s.day_of_week, s.lesson_number, s.room,
               sub.id as subject_id, sub.name as subject_name,
-              c.id as class_id, c.name as class_name,
-              c.year as class_year
+              c.id as class_id, c.name as class_name, c.year as class_year
        FROM schedule s
        JOIN subjects sub ON s.subject_id = sub.id
        JOIN classes c ON s.class_id = c.id
        WHERE s.teacher_id = $1
        ORDER BY s.day_of_week, s.lesson_number`,
-      [session.userId]
+      [teacherId]
     );
+  }
 
-    const teacherClasses = await pool.query(
-      `SELECT DISTINCT class_id FROM schedule WHERE teacher_id = $1`,
-      [session.userId]
+  async getLessonTimes(): Promise<any[]> {
+    return this.query('SELECT lesson_number, start_time, end_time FROM lesson_times ORDER BY lesson_number');
+  }
+
+  async getTeacherClasses(teacherId: string): Promise<any[]> {
+    return this.query('SELECT DISTINCT class_id FROM schedule WHERE teacher_id = $1', [teacherId]);
+  }
+
+  async getScheduleChanges(classIds: number[], targetDate: string): Promise<any[]> {
+    if (classIds.length === 0) return [];
+    return this.query(
+      `SELECT sc.*, c.name as class_name
+       FROM schedule_changes sc
+       JOIN classes c ON sc.class_id = c.id
+       WHERE sc.class_id = ANY($1) AND sc.date = $2::date
+       ORDER BY sc.class_id, sc.lesson_number`,
+      [classIds, targetDate]
     );
+  }
 
-    const classIds = teacherClasses.rows.map(row => row.class_id);
-    
-    let changes: any[] = [];
-    
-    if (classIds.length > 0) {
-      const changesResult = await pool.query(
-        `SELECT sc.*, c.name as class_name
-         FROM schedule_changes sc
-         JOIN classes c ON sc.class_id = c.id
-         WHERE sc.class_id = ANY($1) AND sc.date = $2::date
-         ORDER BY sc.class_id, sc.lesson_number`,
-        [classIds, targetDate]
+  async getTeacherSubjects(teacherId: string): Promise<any[]> {
+    return this.query(
+      `SELECT DISTINCT s.id, s.name, s.description, array_agg(DISTINCT c.name) as classes
+       FROM teacher_subjects ts
+       JOIN subjects s ON ts.subject_id = s.id
+       JOIN classes c ON ts.class_id = c.id
+       WHERE ts.teacher_id = $1
+       GROUP BY s.id`,
+      [teacherId]
+    );
+  }
+
+  async getStudentSubjects(studentId: string): Promise<any[]> {
+    return this.query(
+      `SELECT DISTINCT s.id, s.name, s.description
+       FROM student_classes sc
+       INNER JOIN teacher_subjects ts ON sc.class_id = ts.class_id
+       INNER JOIN subjects s ON ts.subject_id = s.id
+       WHERE sc.student_id = $1`,
+      [studentId]
+    );
+  }
+
+  async getMyClasses(userId: string, role: string): Promise<any[]> {
+    if (role === 'teacher') {
+      return this.query(
+        `SELECT DISTINCT c.id, c.name, c.year, c.created_at
+         FROM teacher_subjects ts 
+         JOIN classes c ON ts.class_id = c.id
+         WHERE ts.teacher_id = $1 
+         ORDER BY c.name`,
+        [userId]
       );
-      changes = changesResult.rows;
     }
+    return this.query(
+      `SELECT DISTINCT c.id, c.name, c.year, c.created_at
+       FROM student_classes sc 
+       JOIN classes c ON sc.class_id = c.id
+       WHERE sc.student_id = $1 
+       ORDER BY c.name`,
+      [userId]
+    );
+  }
+
+  async getClassStudents(classId: string): Promise<any[]> {
+    return this.query(
+      `SELECT u.id, u.name, u.email, COALESCE(u.isFired, false) as isFired
+       FROM users u
+       JOIN student_classes sc ON u.id = sc.student_id
+       WHERE sc.class_id = $1 AND u.role = 'student'
+       ORDER BY u.name`,
+      [classId]
+    );
+  }
+
+  async createScheduleItem(subjectId: number, teacherId: string, classId: number, dayOfWeek: number, lessonNumber: number, room: string): Promise<any> {
+    return this.single(
+      `INSERT INTO schedule (subject_id, teacher_id, class_id, day_of_week, lesson_number, room) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       ON CONFLICT (class_id, day_of_week, lesson_number) 
+       DO UPDATE SET subject_id = $1, teacher_id = $2, room = $6
+       RETURNING id`,
+      [subjectId, teacherId, classId, dayOfWeek, lessonNumber, room]
+    );
+  }
+
+  async getClassSchedule(classId: string): Promise<any[]> {
+    return this.query(
+      `SELECT s.id, s.day_of_week, s.lesson_number, s.room,
+              sub.id as subject_id, sub.name as subject_name,
+              u.id as teacher_id, u.name as teacher_name
+       FROM schedule s
+       JOIN subjects sub ON s.subject_id = sub.id
+       JOIN users u ON s.teacher_id = u.id
+       WHERE s.class_id = $1
+       ORDER BY s.day_of_week, s.lesson_number`,
+      [classId]
+    );
+  }
+
+  async getDashboardStatsForStudent(studentId: string): Promise<any> {
+    const gradesResult = await this.single<{ average: string; total: string }>(
+      'SELECT AVG(grade) as average, COUNT(*) as total FROM grades WHERE student_id = $1',
+      [studentId]
+    );
+    const attendanceResult = await this.single<{ present: string; total: string }>(
+      `SELECT COUNT(CASE WHEN status = 'present' THEN 1 END) as present, COUNT(*) as total
+       FROM attendance WHERE student_id = $1`,
+      [studentId]
+    );
+    const subjectsResult = await this.single<{ count: string }>(
+      `SELECT COUNT(DISTINCT s.id) as count
+       FROM student_classes sc
+       JOIN teacher_subjects ts ON sc.class_id = ts.class_id
+       JOIN subjects s ON ts.subject_id = s.id
+       WHERE sc.student_id = $1`,
+      [studentId]
+    );
+    return {
+      average_grade: parseFloat(gradesResult?.average || '0'),
+      total_grades: parseInt(gradesResult?.total || '0'),
+      attendance_rate: (parseInt(attendanceResult?.total || '0') > 0 
+        ? Math.round((parseInt(attendanceResult?.present || '0') / parseInt(attendanceResult?.total || '0')) * 100)
+        : 0),
+      subjects_count: parseInt(subjectsResult?.count || '0')
+    };
+  }
+
+  async getDashboardStatsForTeacher(): Promise<any> {
+    const studentsResult = await this.single<{ count: string }>('SELECT COUNT(*) FROM users WHERE role = $1', ['student']);
+    const subjectsResult = await this.single<{ count: string }>('SELECT COUNT(*) FROM subjects');
+    const gradesResult = await this.single<{ count: string }>('SELECT COUNT(*) FROM grades');
+    return {
+      total_students: parseInt(studentsResult?.count || '0'),
+      total_subjects: parseInt(subjectsResult?.count || '0'),
+      total_grades: parseInt(gradesResult?.count || '0')
+    };
+  }
+
+  async getGradesBySubjectForTeacher(subjectId: string): Promise<any[]> {
+    return this.query(
+      `SELECT g.id, g.grade, to_char(g.grade_date, 'YYYY-MM-DD') as grade_date,
+              g.comment, g.grade_type, u.id as student_id, u.name as student_name
+       FROM grades g 
+       JOIN users u ON g.student_id = u.id
+       WHERE g.subject_id = $1
+       ORDER BY g.grade_date DESC, g.id DESC`,
+      [subjectId]
+    );
+  }
+
+  async getGradesBySubjectForStudent(subjectId: string, studentId: number): Promise<any[]> {
+    return this.query(
+      `SELECT id, grade, to_char(grade_date, 'YYYY-MM-DD') as grade_date, comment, grade_type
+       FROM grades 
+       WHERE subject_id = $1 AND student_id = $2
+       ORDER BY grade_date DESC`,
+      [subjectId, studentId]
+    );
+  }
+
+  async getAttendanceBySubjectForTeacher(subjectId: string): Promise<any[]> {
+    return this.query(
+      `SELECT a.id, to_char(a.date, 'YYYY-MM-DD') as date, a.status, u.id as student_id, u.name as student_name
+       FROM attendance a 
+       JOIN users u ON a.student_id = u.id
+       WHERE a.subject_id = $1 
+       ORDER BY a.date DESC`,
+      [subjectId]
+    );
+  }
+
+  async getAttendanceBySubjectForStudent(subjectId: string, studentId: number): Promise<any[]> {
+    return this.query(
+      `SELECT id, to_char(date, 'YYYY-MM-DD') as date, status, to_char(created_at, 'HH24:MI:SS') as created_time
+       FROM attendance 
+       WHERE subject_id = $1 AND student_id = $2 
+       ORDER BY date DESC`,
+      [subjectId, studentId]
+    );
+  }
+
+  async getAllStudents(): Promise<any[]> {
+    return this.query(
+      `SELECT id, name, email, created_at 
+       FROM users 
+       WHERE role = 'student' 
+       ORDER BY name`
+    );
+  }
+
+  async getAllTeachers(): Promise<any[]> {
+    return this.query(
+      `SELECT id, name, email, created_at 
+       FROM users 
+       WHERE role = 'teacher' 
+       ORDER BY name`
+    );
+  }
+
+  async updateSubject(subjectId: string, name: string, description: string): Promise<any> {
+    return this.single(
+      `UPDATE subjects 
+       SET name = $1, description = $2 
+       WHERE id = $3 
+       RETURNING id, name, description, created_at`,
+      [name, description, subjectId]
+    );
+  }
+
+  async deleteSubject(subjectId: string): Promise<boolean> {
+    const result = await this.mutation('DELETE FROM subjects WHERE id = $1 RETURNING id', [subjectId]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async createUser(name: string, email: string, hashedPassword: string, role: string): Promise<any> {
+    return this.single(
+      `INSERT INTO users (name, email, password_hash, role, created_at) 
+       VALUES ($1, $2, $3, $4, DEFAULT) 
+       RETURNING id, name, email, created_at`,
+      [name, email, hashedPassword, role]
+    );
+  }
+
+  async updateUser(userId: string, name: string, email: string, role: string): Promise<any> {
+    return this.single(
+      `UPDATE users 
+       SET name = $1, email = $2 
+       WHERE id = $3 AND role = $4 
+       RETURNING id, name, email, created_at`,
+      [name, email, userId, role]
+    );
+  }
+
+  async deleteUser(userId: string, role: string): Promise<boolean> {
+    const result = await this.mutation('DELETE FROM users WHERE id = $1 AND role = $2 RETURNING id', [userId, role]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getAllStudentClasses(): Promise<any[]> {
+    return this.query(
+      `SELECT sc.id, sc.student_id, sc.class_id, sc.joined_at,
+              u.name as student_name, c.name as class_name
+       FROM student_classes sc
+       JOIN users u ON sc.student_id = u.id
+       JOIN classes c ON sc.class_id = c.id
+       ORDER BY c.name, u.name`
+    );
+  }
+
+  async deleteStudentClass(id: string): Promise<boolean> {
+    const result = await this.mutation('DELETE FROM student_classes WHERE id = $1 RETURNING id', [id]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getAllTeacherSubjects(): Promise<any[]> {
+    return this.query(
+      `SELECT ts.id, ts.teacher_id, ts.subject_id, ts.class_id,
+              u.name as teacher_name, s.name as subject_name, c.name as class_name
+       FROM teacher_subjects ts
+       JOIN users u ON ts.teacher_id = u.id
+       JOIN subjects s ON ts.subject_id = s.id
+       JOIN classes c ON ts.class_id = c.id
+       ORDER BY c.name, s.name`
+    );
+  }
+
+  async deleteTeacherSubject(id: string): Promise<boolean> {
+    const result = await this.mutation('DELETE FROM teacher_subjects WHERE id = $1 RETURNING id', [id]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async updateClass(classId: string, name: string, year: number): Promise<any> {
+    return this.single(
+      `UPDATE classes 
+       SET name = $1, year = $2 
+       WHERE id = $3 
+       RETURNING id, name, year, created_at`,
+      [name, year, classId]
+    );
+  }
+
+  async deleteClass(classId: string): Promise<boolean> {
+    const result = await this.mutation('DELETE FROM classes WHERE id = $1 RETURNING id', [classId]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async deleteAttendanceRecord(studentId: number, subjectId: number, date: string): Promise<boolean> {
+    const result = await this.mutation(
+      'DELETE FROM attendance WHERE student_id = $1 AND subject_id = $2 AND date::date = $3::date RETURNING id',
+      [studentId, subjectId, date]
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async deleteGradeRecord(studentId: number, subjectId: number, gradeDate: string): Promise<boolean> {
+    const result = await this.mutation(
+      'DELETE FROM grades WHERE student_id = $1 AND subject_id = $2 AND grade_date::date = $3::date RETURNING id',
+      [studentId, subjectId, gradeDate]
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async deleteScheduleItemRecord(scheduleId: string): Promise<boolean> {
+    const result = await this.mutation('DELETE FROM schedule WHERE id = $1 RETURNING id', [scheduleId]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async assignTeacherToSubject(teacherId: number, subjectId: number, classId: number): Promise<any> {
+    return this.single(
+      `INSERT INTO teacher_subjects (teacher_id, subject_id, class_id) 
+       VALUES ($1, $2, $3) 
+       ON CONFLICT (teacher_id, subject_id, class_id) DO NOTHING
+       RETURNING *`,
+      [teacherId, subjectId, classId]
+    );
+  }
+
+  async getTeacherSubjectAssignment(id: number): Promise<any> {
+    return this.single(
+      `SELECT ts.*, u.name as teacher_name, s.name as subject_name, c.name as class_name
+       FROM teacher_subjects ts
+       JOIN users u ON ts.teacher_id = u.id
+       JOIN subjects s ON ts.subject_id = s.id
+       JOIN classes c ON ts.class_id = c.id
+       WHERE ts.id = $1`,
+      [id]
+    );
+  }
+
+  async checkUserExists(email: string): Promise<boolean> {
+    return this.exists('SELECT id FROM users WHERE email = $1', [email]);
+  }
+
+  async getClassGrades(classId: string): Promise<any[]> {
+    return this.query(
+      `SELECT g.id, g.grade, to_char(g.grade_date, 'YYYY-MM-DD') as date,
+              s.name as subject_name, u.name as student_name
+       FROM grades g
+       JOIN users u ON g.student_id = u.id
+       JOIN subjects s ON g.subject_id = s.id
+       JOIN student_classes sc ON u.id = sc.student_id
+       WHERE sc.class_id = $1
+       ORDER BY g.grade_date DESC, s.name`,
+      [classId]
+    );
+  }
+
+  async getClassAverages(classId: string): Promise<any[]> {
+    return this.query(
+      `SELECT s.name as subject_name,
+              AVG(g.grade) as average_grade,
+              COUNT(g.id) as grades_count
+       FROM grades g
+       JOIN users u ON g.student_id = u.id
+       JOIN subjects s ON g.subject_id = s.id
+       JOIN student_classes sc ON u.id = sc.student_id
+       WHERE sc.class_id = $1
+       GROUP BY s.id, s.name
+       ORDER BY s.name`,
+      [classId]
+    );
+  }
+
+  async getChangesForSubject(classId: string, subjectId: string, startDate: string, endDate: string): Promise<any[]> {
+    return this.query(
+      `SELECT sc.id, to_char(sc.date, 'YYYY-MM-DD') as date, sc.lesson_number, sc.room, sc.change_type,
+              sc.subject_id, sc.teacher_id, sc.notes, sub.name as subject_name, u.name as teacher_name,
+              sc.original_subject_id, sc.original_teacher_id
+       FROM schedule_changes sc
+       LEFT JOIN subjects sub ON sc.subject_id = sub.id
+       LEFT JOIN users u ON sc.teacher_id = u.id
+       WHERE sc.class_id = $1 AND sc.subject_id = $2
+         AND sc.date BETWEEN $3::date AND $4::date
+         AND sc.change_type IN ('replace', 'added')
+       ORDER BY sc.date, sc.lesson_number`,
+      [classId, subjectId, startDate, endDate]
+    );
+  }
+}
+
+class GradebookController extends BaseController {
+  private service: GradebookService;
+
+  constructor() {
+    super();
+    this.service = new GradebookService();
+  }
+
+  async getAllSubjects(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const subjects = await this.service.getAllSubjects();
+    return this.success(res, { subjects });
+  }
+
+  async createSubject(req: Request<{}, {}, SubjectBody>, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const { name, description } = req.body;
+    if (!name?.trim()) {
+      return this.error(res, 'Название предмета обязательно', 400);
+    }
+
+    const subject = await this.service.createSubject(name, description || null);
+    return this.success(res, { subject }, 201);
+  }
+
+  async getAllClasses(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const classes = await this.service.getAllClasses();
+    return this.success(res, { classes });
+  }
+
+  async createClass(req: Request<{}, {}, ClassBody>, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const { name, year } = req.body;
+    const newClass = await this.service.createClass(name, year);
+    return this.success(res, { class: newClass }, 201);
+  }
+
+  async addStudentToClass(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const { student_id, class_id } = req.body;
+    if (!student_id || !class_id) {
+      return this.error(res, 'Необходимо указать student_id и class_id', 400);
+    }
+
+    const studentExists = await this.service.checkStudentExists(student_id);
+    if (!studentExists) return this.error(res, 'Студент не найден', 404);
+
+    const classExists = await this.service.checkClassExists(class_id);
+    if (!classExists) return this.error(res, 'Класс не найден', 404);
+
+    const result = await this.service.addStudentToClass(student_id, class_id);
+    if (!result) {
+      return this.error(res, 'Студент уже привязан к этому классу', 409);
+    }
+
+    return this.success(res, { student_class: result, message: 'Студент успешно добавлен в класс' }, 201);
+  }
+
+  async addGrade(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const { student_id, subject_id, grade, grade_date, semester, comment, grade_type = 'classwork' } = req.body;
+    const targetDate = grade_date ? new Date(grade_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+
+    await this.service.mutation(
+      'DELETE FROM attendance WHERE student_id = $1 AND subject_id = $2 AND date::date = $3::date',
+      [student_id, subject_id, targetDate]
+    );
+
+    const result = await this.service.upsertGrade(
+      { student_id, subject_id, grade, semester, comment, grade_type },
+      auth.userId!,
+      targetDate
+    );
+
+    const subjectInfo = await this.service.getSubjectInfo(subject_id);
+    const teacherInfo = await this.service.getUserInfo(auth.userId!);
+
+    const io = req.app.get('io');
+    const userSockets = req.app.get('userSockets');
+    const studentSocketId = userSockets.get(student_id);
+
+    if (studentSocketId && io) {
+      io.to(studentSocketId).emit('new_grade', {
+        id: result.id,
+        grade,
+        subject_name: subjectInfo?.name || 'Предмет',
+        teacher_name: teacherInfo?.name || 'Учитель',
+        date: targetDate,
+        grade_type,
+        comment: comment || null,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    return this.success(res, { grade: result }, 201);
+  }
+
+  async getStudentGrades(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const studentId = req.params.studentId || auth.userId!;
+    const subjectId = req.query.subject_id as string | undefined;
+    const grades = await this.service.getStudentGrades(studentId, subjectId);
+    return this.success(res, { grades });
+  }
+
+  async getAverageGrade(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const studentId = req.params.studentId || auth.userId!;
+    const averages = await this.service.getAverageGrade(studentId);
+    return this.success(res, { averages });
+  }
+
+  async markAttendance(req: Request<{}, {}, AttendanceBody>, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const { student_id, subject_id, date, status } = req.body;
+    const targetDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+
+    const attendance = await this.service.markAttendance(student_id, subject_id, targetDate, status);
+    return this.success(res, { attendance }, 201);
+  }
+
+  async getStudentAttendance(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const studentId = req.params.studentId || auth.userId!;
+    const subjectId = req.query.subject_id as string | undefined;
+    const attendance = await this.service.getStudentAttendance(studentId, subjectId);
+    return this.success(res, { attendance });
+  }
+
+  async createHomework(req: Request<{}, {}, HomeworkBody>, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const { subject_id, title, description, due_date } = req.body;
+    const homework = await this.service.createHomework(subject_id, auth.userId!, title, description || '', due_date);
+    return this.success(res, { homework }, 201);
+  }
+
+  async getHomework(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const homework = await this.service.getHomework();
+    return this.success(res, { homework });
+  }
+
+  async submitHomework(req: Request<{ id: string }, {}, HomeworkSubmissionBody>, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const homeworkId = parseInt(req.params.id);
+    const { submission_text } = req.body;
+    const submission = await this.service.submitHomework(homeworkId, auth.userId!, submission_text || '');
+    return this.success(res, { submission }, 201);
+  }
+
+  async getTeacherScheduleWithChanges(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const targetDate = (req.query.date as string) || new Date().toISOString().split('T')[0];
+    const schedule = await this.service.getTeacherSchedule(auth.userId!);
+    const teacherClasses = await this.service.getTeacherClasses(auth.userId!);
+    const classIds = teacherClasses.map((row: any) => row.class_id);
+    const changes = await this.service.getScheduleChanges(classIds, targetDate);
 
     const changesMap = new Map();
     changes.forEach((change: any) => {
-      const key = `${change.class_id}_${change.lesson_number}`;
-      changesMap.set(key, change);
+      changesMap.set(`${change.class_id}_${change.lesson_number}`, change);
     });
 
-    const finalSchedule = scheduleResult.rows.map((item: any) => {
+    const finalSchedule = schedule.map((item: any) => {
       const key = `${item.class_id}_${item.lesson_number}`;
       const change = changesMap.get(key);
 
       if (change) {
         if (change.change_type === 'cancel') {
-          return {
-            ...item,
-            is_canceled: true,
-            change_type: 'cancel',
-            notes: change.notes
-          };
+          return { ...item, is_canceled: true, change_type: 'cancel', notes: change.notes };
         } else if (change.change_type === 'replace') {
           return {
             id: change.id,
@@ -613,11 +898,7 @@ export async function getTeacherScheduleWithChanges(req: Request, res: Response)
           };
         }
       }
-      
-      return {
-        ...item,
-        is_regular: true
-      };
+      return { ...item, is_regular: true };
     });
 
     for (const change of changes) {
@@ -625,7 +906,6 @@ export async function getTeacherScheduleWithChanges(req: Request, res: Response)
         const dateObj = new Date(targetDate);
         let dayOfWeek = dateObj.getDay();
         if (dayOfWeek === 0) dayOfWeek = 7;
-        
         finalSchedule.push({
           id: change.id,
           day_of_week: dayOfWeek,
@@ -643,1098 +923,504 @@ export async function getTeacherScheduleWithChanges(req: Request, res: Response)
         });
       }
     }
-    
-    finalSchedule.sort((a, b) => {
+
+    finalSchedule.sort((a: any, b: any) => {
       if (a.day_of_week !== b.day_of_week) return a.day_of_week - b.day_of_week;
       return a.lesson_number - b.lesson_number;
     });
 
-    const lessonTimesResult: QueryResult = await pool.query(
-      'SELECT lesson_number, start_time, end_time FROM lesson_times ORDER BY lesson_number'
-    );
-    
-    return res.json({ 
-      success: true, 
-      schedule: finalSchedule,
-      lesson_times: lessonTimesResult.rows,
-      date: targetDate
-    });
-  } catch (error) {
-    console.error('Get teacher schedule with changes error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения расписания' });
-  }
-}
-
-export async function getChangesForSubject(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
+    const lessonTimes = await this.service.getLessonTimes();
+    return this.success(res, { schedule: finalSchedule, lesson_times: lessonTimes, date: targetDate });
   }
 
-  const classId = req.params.classId;
-  const subjectId = req.params.subjectId;
-  const startDate = req.query.start as string;
-  const endDate = req.query.end as string;
+  async getTeacherSchedule(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-  try {
-    const result = await pool.query(
-      `SELECT sc.id, 
-              to_char(sc.date, 'YYYY-MM-DD') as date,
-              sc.lesson_number, 
-              sc.room, 
-              sc.change_type, 
-              sc.subject_id,
-              sc.teacher_id,
-              sc.notes,
-              sub.name as subject_name, 
-              u.name as teacher_name,
-              sc.original_subject_id,
-              sc.original_teacher_id
-       FROM schedule_changes sc
-       LEFT JOIN subjects sub ON sc.subject_id = sub.id
-       LEFT JOIN users u ON sc.teacher_id = u.id
-       WHERE sc.class_id = $1 
-         AND sc.subject_id = $2
-         AND sc.date BETWEEN $3::date AND $4::date
-         AND sc.change_type IN ('replace', 'added')
-       ORDER BY sc.date, sc.lesson_number`,
-      [classId, subjectId, startDate, endDate]
-    );
-    
-    return res.json({ success: true, changes: result.rows });
-  } catch (error) {
-    console.error('Get changes for subject error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения изменений' });
-  }
-}
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
 
-export async function getClassGrades(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    const schedule = await this.service.getTeacherSchedule(auth.userId!);
+    const lessonTimes = await this.service.getLessonTimes();
+    return this.success(res, { schedule, lesson_times: lessonTimes });
   }
 
-  const classId = req.params.classId;
+  async getClassSchedule(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-  try {
-    const result = await pool.query(
-      `SELECT g.id, g.grade, to_char(g.grade_date, 'YYYY-MM-DD') as date,
-              s.name as subject_name, u.name as student_name
-       FROM grades g
-       JOIN users u ON g.student_id = u.id
-       JOIN subjects s ON g.subject_id = s.id
-       JOIN student_classes sc ON u.id = sc.student_id
-       WHERE sc.class_id = $1
-       ORDER BY g.grade_date DESC, s.name`,
-      [classId]
-    );
-    return res.json({ success: true, grades: result.rows });
-  } catch (error) {
-    console.error('Get class grades error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения оценок' });
-  }
-}
-
-export async function getClassAverages(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    const classId = req.params.classId;
+    const schedule = await this.service.getClassSchedule(classId);
+    const lessonTimes = await this.service.getLessonTimes();
+    return this.success(res, { schedule, lesson_times: lessonTimes });
   }
 
-  const classId = req.params.classId;
+  async getMySubjects(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-  try {
-    const result = await pool.query(
-      `SELECT s.name as subject_name,
-              AVG(g.grade) as average_grade,
-              COUNT(g.id) as grades_count
-       FROM grades g
-       JOIN users u ON g.student_id = u.id
-       JOIN subjects s ON g.subject_id = s.id
-       JOIN student_classes sc ON u.id = sc.student_id
-       WHERE sc.class_id = $1
-       GROUP BY s.id, s.name
-       ORDER BY s.name`,
-      [classId]
-    );
-    return res.json({ success: true, averages: result.rows });
-  } catch (error) {
-    console.error('Get class averages error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения средних баллов' });
-  }
-}
-
-export async function getTeacherSchedule(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    const subjects = await this.service.getMySubjects(auth.userId!, auth.userRole!);
+    return this.success(res, { subjects });
   }
 
-  try {
-    const scheduleResult: QueryResult = await pool.query(
-      `SELECT s.id, s.day_of_week, s.lesson_number, s.room,
-              sub.id as subject_id, sub.name as subject_name,
-              c.id as class_id, c.name as class_name,
-              c.year as class_year
-       FROM schedule s
-       JOIN subjects sub ON s.subject_id = sub.id
-       JOIN classes c ON s.class_id = c.id
-       WHERE s.teacher_id = $1
-       ORDER BY s.day_of_week, s.lesson_number`,
-      [session.userId]
-    );
-    
-    const lessonTimesResult: QueryResult = await pool.query(
-      'SELECT lesson_number, start_time, end_time FROM lesson_times ORDER BY lesson_number'
-    );
-    
-    return res.json({ 
-      success: true, 
-      schedule: scheduleResult.rows,
-      lesson_times: lessonTimesResult.rows
-    });
-  } catch (error) {
-    console.error('Get teacher schedule error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения расписания' });
-  }
-}
-export async function assignTeacherToSubject(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+  async getMyClasses(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const classes = await this.service.getMyClasses(auth.userId!, auth.userRole!);
+    return this.success(res, { classes });
   }
 
-  const { teacher_id, subject_id, class_id } = req.body;
+  
 
-  if (!teacher_id || !subject_id || !class_id) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Необходимо указать teacher_id, subject_id и class_id',
-      received: { teacher_id, subject_id, class_id }
-    });
+  async getClassStudents(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const classId = req.params.classId;
+    const students = await this.service.getClassStudents(classId);
+    return this.success(res, { students });
   }
 
-  try {
-    const result: QueryResult = await pool.query(
-      `INSERT INTO teacher_subjects (teacher_id, subject_id, class_id) 
-       VALUES ($1, $2, $3) 
-       ON CONFLICT (teacher_id, subject_id, class_id) DO NOTHING
-       RETURNING *`,
-      [teacher_id, subject_id, class_id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(409).json({ 
-        success: false, 
-        message: 'Такая связь уже существует' 
-      });
-    }
-    
-    const assignment = await pool.query(
-      `SELECT ts.*, 
-              u.name as teacher_name,
-              s.name as subject_name,
-              c.name as class_name
-       FROM teacher_subjects ts
-       JOIN users u ON ts.teacher_id = u.id
-       JOIN subjects s ON ts.subject_id = s.id
-       JOIN classes c ON ts.class_id = c.id
-       WHERE ts.id = $1`,
-      [result.rows[0].id]
-    );
-    
-    return res.status(201).json({ 
-      success: true, 
-      assignment: assignment.rows[0],
-      message: 'Учитель успешно назначен'
-    });
-  } catch (error) {
-    console.error('Assign teacher error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Ошибка назначения учителя',
-      error: error instanceof Error ? error.message : String(error)
-    });
-  }
-}
+  async createScheduleItem(req: Request<{}, {}, ScheduleBody>, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-export async function getMySubjects(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const { subject_id, class_id, day_of_week, lesson_number, room } = req.body;
+    const schedule = await this.service.createScheduleItem(subject_id, auth.userId!, class_id, day_of_week, lesson_number, room || '');
+    return this.success(res, { schedule }, 201);
   }
 
-  const isTeacher = session.userRole === 'teacher';
+  async getDashboardStats(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-  try {
-    if (isTeacher) {
-      const query = `
-        SELECT DISTINCT s.id, s.name, s.description, 
-               array_agg(DISTINCT c.name) as classes
-        FROM teacher_subjects ts
-        JOIN subjects s ON ts.subject_id = s.id
-        JOIN classes c ON ts.class_id = c.id
-        WHERE ts.teacher_id = $1
-        GROUP BY s.id
-      `;
-      const result: QueryResult = await pool.query(query, [session.userId]);
-      return res.json({ success: true, subjects: result.rows });
+    let stats;
+    if (auth.userRole === 'student') {
+      stats = await this.service.getDashboardStatsForStudent(auth.userId!);
     } else {
-      const studentId = session.userId;
-            
-      const query = `
-        SELECT DISTINCT s.id, s.name, s.description
-        FROM student_classes sc
-        INNER JOIN teacher_subjects ts ON sc.class_id = ts.class_id
-        INNER JOIN subjects s ON ts.subject_id = s.id
-        WHERE sc.student_id = $1
-      `;
-      
-      const result: QueryResult = await pool.query(query, [studentId]);
-      
-      return res.json({ success: true, subjects: result.rows });
+      stats = await this.service.getDashboardStatsForTeacher();
     }
-  } catch (error) {
-    console.error('Get my subjects error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения предметов' });
-  }
-}
-export async function getMyClasses(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
+    return this.success(res, { stats });
   }
 
-  try {
-    let query: string;
-    let params: any[];
+  async getGradesBySubject(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-    if (session.userRole === 'teacher') {
-      query = `
-        SELECT DISTINCT c.id, c.name, c.year, c.created_at
-        FROM teacher_subjects ts
-        JOIN classes c ON ts.class_id = c.id
-        WHERE ts.teacher_id = $1
-        ORDER BY c.name
-      `;
-      params = [session.userId];
+    const subjectId = req.params.subjectId;
+    let grades;
+    if (auth.userRole === 'teacher') {
+      grades = await this.service.getGradesBySubjectForTeacher(subjectId);
     } else {
-      query = `
-        SELECT DISTINCT c.id, c.name, c.year, c.created_at
-        FROM student_classes sc
-        JOIN classes c ON sc.class_id = c.id
-        WHERE sc.student_id = $1
-        ORDER BY c.name
-      `;
-      params = [session.userId];
+      grades = await this.service.getGradesBySubjectForStudent(subjectId, parseInt(auth.userId!));
     }
-
-    const result = await pool.query(query, params);
-    return res.json({ success: true, classes: result.rows });
-  } catch (error) {
-    console.error('Get my classes error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения данных' });
-  }
-}
-
-export async function getClassStudents(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
+    return this.success(res, { grades });
   }
 
-  const classId = req.params.classId;
+  async getAttendanceBySubject(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-  try {
-    const result = await pool.query(
-      `SELECT u.id, u.name, u.email, COALESCE(u.isFired, false) as isFired
-       FROM users u
-       JOIN student_classes sc ON u.id = sc.student_id
-       WHERE sc.class_id = $1 AND u.role = 'student'
-       ORDER BY u.name`,
-      [classId]
-    );
-    
-    return res.json({ success: true, students: result.rows });
-  } catch (error) {
-    console.error('Get class students error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Ошибка получения студентов класса' 
-    });
-  }
-}
-
-export async function createScheduleItem(req: Request<{}, {}, ScheduleBody>, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const { subject_id, class_id, day_of_week, lesson_number, room } = req.body;
-
-  try {
-    const result: QueryResult = await pool.query(
-      `INSERT INTO schedule (subject_id, teacher_id, class_id, day_of_week, lesson_number, room) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
-       ON CONFLICT (class_id, day_of_week, lesson_number) 
-       DO UPDATE SET subject_id = $1, teacher_id = $2, room = $6
-       RETURNING id`,
-      [subject_id, session.userId, class_id, day_of_week, lesson_number, room]
-    );
-    return res.status(201).json({ success: true, schedule: result.rows[0] });
-  } catch (error) {
-    console.error('Create schedule error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка создания расписания' });
-  }
-}
-
-export async function deleteAttendanceByDate(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const { student_id, subject_id, date } = req.body;
-
-  if (!student_id || !subject_id || !date) {
-    return res.status(400).json({ success: false, message: 'Не указаны обязательные параметры' });
-  }
-
-  try {
-    const result = await pool.query(
-      'DELETE FROM attendance WHERE student_id = $1 AND subject_id = $2 AND date::date = $3::date RETURNING id',
-      [student_id, subject_id, date]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Запись не найдена' });
-    }
-    
-    return res.json({ success: true, message: 'Запись удалена' });
-  } catch (error) {
-    console.error('Delete attendance error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка удаления' });
-  }
-}
-
-export async function deleteGradeByDate(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const { student_id, subject_id, grade_date } = req.body;
-
-  if (!student_id || !subject_id || !grade_date) {
-    return res.status(400).json({ success: false, message: 'Не указаны обязательные параметры' });
-  }
-
-  try {
-    const result = await pool.query(
-      'DELETE FROM grades WHERE student_id = $1 AND subject_id = $2 AND grade_date::date = $3::date RETURNING id',
-      [student_id, subject_id, grade_date]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Оценка не найдена' });
-    }
-    
-    return res.json({ success: true, message: 'Оценка удалена' });
-  } catch (error) {
-    console.error('Delete grade error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка удаления оценки' });
-  }
-}
-
-export async function deleteScheduleItem(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const scheduleId = req.params.id;
-
-  try {
-    const result: QueryResult = await pool.query(
-      'DELETE FROM schedule WHERE id = $1 RETURNING id',
-      [scheduleId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Запись не найдена' });
-    }
-    
-    return res.json({ success: true, message: 'Запись удалена' });
-  } catch (error) {
-    console.error('Delete schedule error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка удаления' });
-  }
-}
-
-
-export async function getClassSchedule(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
-  }
-
-  const classId = req.params.classId;
-
-  try {
-    const scheduleResult: QueryResult = await pool.query(
-      `SELECT s.id, s.day_of_week, s.lesson_number, s.room,
-              sub.id as subject_id, sub.name as subject_name,
-              u.id as teacher_id, u.name as teacher_name
-       FROM schedule s
-       JOIN subjects sub ON s.subject_id = sub.id
-       JOIN users u ON s.teacher_id = u.id
-       WHERE s.class_id = $1
-       ORDER BY s.day_of_week, s.lesson_number`,
-      [classId]
-    );
-    const lessonTimesResult: QueryResult = await pool.query(
-      'SELECT lesson_number, start_time, end_time FROM lesson_times ORDER BY lesson_number'
-    );
-    
-    return res.json({ 
-      success: true, 
-      schedule: scheduleResult.rows,
-      lesson_times: lessonTimesResult.rows
-    });  } catch (error) {
-    console.error('Get schedule error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения расписания' });
-  }
-}
-
-export async function getDashboardStats(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
-  }
-
-  try {
-    if (session.userRole === 'student') {
-      const gradesResult = await pool.query(
-        'SELECT AVG(grade) as average, COUNT(*) as total FROM grades WHERE student_id = $1',
-        [session.userId]
-      );
-      
-      const attendanceResult = await pool.query(
-        `SELECT 
-           COUNT(CASE WHEN status = 'present' THEN 1 END) as present,
-           COUNT(*) as total
-         FROM attendance WHERE student_id = $1`,
-        [session.userId]
-      );
-
-      const subjectsResult = await pool.query(
-        `SELECT COUNT(DISTINCT s.id) as count
-         FROM student_classes sc
-         JOIN teacher_subjects ts ON sc.class_id = ts.class_id
-         JOIN subjects s ON ts.subject_id = s.id
-         WHERE sc.student_id = $1`,
-        [session.userId]
-      );
-
-      return res.json({
-        success: true,
-        stats: {
-          average_grade: parseFloat(gradesResult.rows[0].average) || 0,
-          total_grades: parseInt(gradesResult.rows[0].total) || 0,
-          attendance_rate: attendanceResult.rows[0].total > 0 
-            ? Math.round((attendanceResult.rows[0].present / attendanceResult.rows[0].total) * 100)
-            : 0,
-          subjects_count: parseInt(subjectsResult.rows[0].count) || 0
-        }
-      });
+    const subjectId = req.params.subjectId;
+    let attendance;
+    if (auth.userRole === 'teacher') {
+      attendance = await this.service.getAttendanceBySubjectForTeacher(subjectId);
     } else {
-      const studentsResult = await pool.query('SELECT COUNT(*) FROM users WHERE role = $1', ['student']);
-      const subjectsResult = await pool.query('SELECT COUNT(*) FROM subjects');
-      const gradesResult = await pool.query('SELECT COUNT(*) FROM grades');
-      
-      return res.json({
-        success: true,
-        stats: {
-          total_students: parseInt(studentsResult.rows[0].count),
-          total_subjects: parseInt(subjectsResult.rows[0].count),
-          total_grades: parseInt(gradesResult.rows[0].count)
-        }
-      });
+      attendance = await this.service.getAttendanceBySubjectForStudent(subjectId, parseInt(auth.userId!));
     }
-  } catch (error) {
-    console.error('Get dashboard stats error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения статистики' });
-  }
-}
-
-export async function getGradesBySubject(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
+    return this.success(res, { attendance });
   }
 
-  const subjectId = req.params.subjectId;
+  async getAllStudents(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-  try {
-    let query: string;
-    let params: any[];
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
 
-    if (session.userRole === 'teacher') {
-      query = `
-        SELECT g.id, g.grade, 
-               to_char(g.grade_date, 'YYYY-MM-DD') as grade_date,
-               g.comment, g.grade_type,
-               u.id as student_id, u.name as student_name
-        FROM grades g
-        JOIN users u ON g.student_id = u.id
-        WHERE g.subject_id = $1
-        ORDER BY g.grade_date DESC, g.id DESC
-      `;
-      params = [subjectId];
-    } else {
-      const studentIdInt = parseInt(session.userId, 10);
-      query = `
-        SELECT id, grade, 
-               to_char(grade_date, 'YYYY-MM-DD') as grade_date,
-               comment, grade_type
-        FROM grades
-        WHERE subject_id = $1 AND student_id = $2
-        ORDER BY grade_date DESC
-      `;
-      params = [subjectId, studentIdInt];
-    }
-
-    const result: QueryResult = await pool.query(query, params);
-    return res.json({ success: true, grades: result.rows });
-  } catch (error) {
-    console.error('Get grades by subject error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения оценок' });
-  }
-}
-
-export async function getAttendanceBySubject(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId) {
-    return res.status(401).json({ success: false, message: 'Не авторизован' });
+    const students = await this.service.getAllStudents();
+    return this.success(res, { students });
   }
 
-  const subjectId = req.params.subjectId;
+  async getAllTeachers(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-  try {
-    let query: string;
-    let params: any[];
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
 
-    if (session.userRole === 'teacher') {
-      query = `
-        SELECT a.id, 
-               to_char(a.date, 'YYYY-MM-DD') as date,
-               a.status, 
-               u.id as student_id, 
-               u.name as student_name
-        FROM attendance a
-        JOIN users u ON a.student_id = u.id
-        WHERE a.subject_id = $1
-        ORDER BY a.date DESC
-      `;
-      params = [subjectId];
-    } else {
-      const studentIdInt = parseInt(session.userId, 10);
-      query = `
-        SELECT id, 
-               to_char(date, 'YYYY-MM-DD') as date,
-               status,
-                to_char(created_at, 'HH24:MI:SS') as created_time
-        FROM attendance
-        WHERE subject_id = $1 AND student_id = $2
-        ORDER BY date DESC
-      `;
-      params = [subjectId, studentIdInt];
+    const teachers = await this.service.getAllTeachers();
+    return this.success(res, { teachers });
+  }
+
+  async updateSubject(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const subjectId = req.params.id;
+    const { name, description } = req.body;
+    const subject = await this.service.updateSubject(subjectId, name, description);
+    if (!subject) return this.error(res, 'Предмет не найден', 404);
+    return this.success(res, { subject });
+  }
+
+  async deleteSubject(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const subjectId = req.params.id;
+    const deleted = await this.service.deleteSubject(subjectId);
+    if (!deleted) return this.error(res, 'Предмет не найден', 404);
+    return this.success(res, { message: 'Предмет удален' });
+  }
+
+  async createTeacher(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return this.error(res, 'Все поля обязательны', 400);
     }
 
-    const result: QueryResult = await pool.query(query, params);
-    return res.json({ success: true, attendance: result.rows });
-  } catch (error) {
-    console.error('Get attendance by subject error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения посещаемости' });
-  }
-}
-
-export async function deleteGrade(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const { student_id, subject_id, grade_date } = req.body;
-
-  try {
-    const result = await pool.query(
-      'DELETE FROM grades WHERE student_id = $1 AND subject_id = $2 AND grade_date::date = $3::date RETURNING id',
-      [student_id, subject_id, grade_date]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Оценка не найдена' });
-    }
-    
-    return res.json({ success: true, message: 'Оценка удалена' });
-  } catch (error) {
-    console.error('Delete grade error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка удаления оценки' });
-  }
-}
-
-export async function deleteAttendance(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const { student_id, subject_id, date } = req.body;
-
-  if (!student_id || !subject_id || !date) {
-    return res.status(400).json({ success: false, message: 'Не указаны обязательные параметры' });
-  }
-
-  try {
-    const result = await pool.query(
-      'DELETE FROM attendance WHERE student_id = $1 AND subject_id = $2 AND date::date = $3::date RETURNING id',
-      [student_id, subject_id, date]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Запись о посещаемости не найдена' });
-    }
-    
-    return res.json({ success: true, message: 'Запись удалена' });
-  } catch (error) {
-    console.error('Delete attendance error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка удаления' });
-  }
-}
-
-export async function getAllStudents(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  try {
-    const result: QueryResult = await pool.query(
-      `SELECT id, name, email, created_at 
-       FROM users 
-       WHERE role = 'student' 
-       ORDER BY name`
-    );
-    return res.json({ success: true, students: result.rows });
-  } catch (error) {
-    console.error('Get all students error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения студентов' });
-  }
-}
-
-export async function updateSubject(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const subjectId = req.params.id;
-  const { name, description } = req.body;
-
-  try {
-    const result: QueryResult = await pool.query(
-      `UPDATE subjects 
-       SET name = $1, description = $2 
-       WHERE id = $3 
-       RETURNING id, name, description, created_at`,
-      [name, description, subjectId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Предмет не найден' });
-    }
-    
-    return res.json({ success: true, subject: result.rows[0] });
-  } catch (error) {
-    console.error('Update subject error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка обновления предмета' });
-  }
-}
-
-export async function deleteSubject(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const subjectId = req.params.id;
-
-  try {
-    const result: QueryResult = await pool.query(
-      'DELETE FROM subjects WHERE id = $1 RETURNING id',
-      [subjectId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Предмет не найден' });
-    }
-    
-    return res.json({ success: true, message: 'Предмет удален' });
-  } catch (error) {
-    console.error('Delete subject error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка удаления предмета' });
-  }
-}
-
-export async function createTeacher(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const { name, email, password } = req.body;
-
-  if (!name || !email || !password) {
-    return res.status(400).json({ success: false, message: 'Все поля обязательны' });
-  }
-
-  try {
-    const existingUser = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
-    );
-
-    if (existingUser.rows.length > 0) {
-      return res.status(400).json({ success: false, message: 'Пользователь с таким email уже существует' });
-    }
+    const userExists = await this.service.checkUserExists(email);
+    if (userExists) return this.error(res, 'Пользователь с таким email уже существует', 400);
 
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    const result: QueryResult = await pool.query(
-      `INSERT INTO users (name, email, password_hash, role, created_at) 
-       VALUES ($1, $2, $3, 'teacher', DEFAULT) 
-       RETURNING id, name, email, created_at`,
-      [name, email, hashedPassword]
-    );
-    return res.status(201).json({ success: true, teacher: result.rows[0] });
-  } catch (error) {
-    console.error('Create teacher error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка создания учителя' });
-  }
-}
-export async function updateTeacher(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    const teacher = await this.service.createUser(name, email, hashedPassword, 'teacher');
+    return this.success(res, { teacher }, 201);
   }
 
-  const teacherId = req.params.id;
-  const { name, email } = req.body;
+  async updateTeacher(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-  try {
-    const result: QueryResult = await pool.query(
-      `UPDATE users 
-       SET name = $1, email = $2 
-       WHERE id = $3 AND role = 'teacher' 
-       RETURNING id, name, email, created_at`,
-      [name, email, teacherId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Учитель не найден' });
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const teacherId = req.params.id;
+    const { name, email } = req.body;
+    const teacher = await this.service.updateUser(teacherId, name, email, 'teacher');
+    if (!teacher) return this.error(res, 'Учитель не найден', 404);
+    return this.success(res, { teacher });
+  }
+
+  async deleteTeacher(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const teacherId = req.params.id;
+    const deleted = await this.service.deleteUser(teacherId, 'teacher');
+    if (!deleted) return this.error(res, 'Учитель не найден', 404);
+    return this.success(res, { message: 'Учитель удален' });
+  }
+
+  async createStudent(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return this.error(res, 'Все поля обязательны', 400);
     }
-    
-    return res.json({ success: true, teacher: result.rows[0] });
-  } catch (error) {
-    console.error('Update teacher error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка обновления учителя' });
-  }
-}
 
-export async function deleteTeacher(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const teacherId = req.params.id;
-
-  try {
-    const result: QueryResult = await pool.query(
-      'DELETE FROM users WHERE id = $1 AND role = $2 RETURNING id',
-      [teacherId, 'teacher']
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Учитель не найден' });
-    }
-    
-    return res.json({ success: true, message: 'Учитель удален' });
-  } catch (error) {
-    console.error('Delete teacher error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка удаления учителя' });
-  }
-}
-
-export async function createStudent(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const { name, email, password } = req.body;
-
-  if (!name || !email || !password) {
-    return res.status(400).json({ success: false, message: 'Все поля обязательны' });
-  }
-
-  try {
-    const existingUser = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
-    );
-
-    if (existingUser.rows.length > 0) {
-      return res.status(400).json({ success: false, message: 'Пользователь с таким email уже существует' });
-    }
+    const userExists = await this.service.checkUserExists(email);
+    if (userExists) return this.error(res, 'Пользователь с таким email уже существует', 400);
 
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    const result: QueryResult = await pool.query(
-      `INSERT INTO users (name, email, password_hash, role, created_at) 
-       VALUES ($1, $2, $3, 'student', DEFAULT) 
-       RETURNING id, name, email, created_at`,
-      [name, email, hashedPassword]
-    );
-    return res.status(201).json({ success: true, student: result.rows[0] });
-  } catch (error) {
-    console.error('Create student error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка создания студента' });
-  }
-}
-export async function updateStudent(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    const student = await this.service.createUser(name, email, hashedPassword, 'student');
+    return this.success(res, { student }, 201);
   }
 
-  const studentId = req.params.id;
-  const { name, email } = req.body;
+  async updateStudent(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-  try {
-    const result: QueryResult = await pool.query(
-      `UPDATE users 
-       SET name = $1, email = $2 
-       WHERE id = $3 AND role = 'student' 
-       RETURNING id, name, email, created_at`,
-      [name, email, studentId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Студент не найден' });
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const studentId = req.params.id;
+    const { name, email } = req.body;
+    const student = await this.service.updateUser(studentId, name, email, 'student');
+    if (!student) return this.error(res, 'Студент не найден', 404);
+    return this.success(res, { student });
+  }
+
+  async deleteStudent(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const studentId = req.params.id;
+    const deleted = await this.service.deleteUser(studentId, 'student');
+    if (!deleted) return this.error(res, 'Студент не найден', 404);
+    return this.success(res, { message: 'Студент удален' });
+  }
+
+  async getAllStudentClasses(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const studentClasses = await this.service.getAllStudentClasses();
+    return this.success(res, { student_classes: studentClasses });
+  }
+
+  async deleteStudentClass(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const id = req.params.id;
+    const deleted = await this.service.deleteStudentClass(id);
+    if (!deleted) return this.error(res, 'Запись не найдена', 404);
+    return this.success(res, { message: 'Студент удален из класса' });
+  }
+
+  async getAllTeacherSubjects(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const teacherSubjects = await this.service.getAllTeacherSubjects();
+    return this.success(res, { teacher_subjects: teacherSubjects });
+  }
+
+  async deleteTeacherSubject(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const id = req.params.id;
+    const deleted = await this.service.deleteTeacherSubject(id);
+    if (!deleted) return this.error(res, 'Запись не найдена', 404);
+    return this.success(res, { message: 'Назначение удалено' });
+  }
+
+  async assignTeacherToSubject(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const { teacher_id, subject_id, class_id } = req.body;
+    if (!teacher_id || !subject_id || !class_id) {
+      return this.error(res, 'Необходимо указать teacher_id, subject_id и class_id', 400);
     }
-    
-    return res.json({ success: true, student: result.rows[0] });
-  } catch (error) {
-    console.error('Update student error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка обновления студента' });
-  }
-}
 
-export async function deleteStudent(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const studentId = req.params.id;
-
-  try {
-    const result: QueryResult = await pool.query(
-      'DELETE FROM users WHERE id = $1 AND role = $2 RETURNING id',
-      [studentId, 'student']
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Студент не найден' });
+    const result = await this.service.assignTeacherToSubject(teacher_id, subject_id, class_id);
+    if (!result) {
+      return this.error(res, 'Такая связь уже существует', 409);
     }
-    
-    return res.json({ success: true, message: 'Студент удален' });
-  } catch (error) {
-    console.error('Delete student error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка удаления студента' });
-  }
-}
 
-export async function getAllStudentClasses(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    const assignment = await this.service.getTeacherSubjectAssignment(result.id);
+    return this.success(res, { assignment, message: 'Учитель успешно назначен' }, 201);
   }
 
-  try {
-    const result: QueryResult = await pool.query(
-      `SELECT sc.id, sc.student_id, sc.class_id, sc.joined_at,
-              u.name as student_name, c.name as class_name
-       FROM student_classes sc
-       JOIN users u ON sc.student_id = u.id
-       JOIN classes c ON sc.class_id = c.id
-       ORDER BY c.name, u.name`
-    );
-    return res.json({ success: true, student_classes: result.rows });
-  } catch (error) {
-    console.error('Get student classes error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения данных' });
-  }
-}
+  async updateClass(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-export async function deleteStudentClass(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const classId = req.params.id;
+    const { name, year } = req.body;
+    const updatedClass = await this.service.updateClass(classId, name, year);
+    if (!updatedClass) return this.error(res, 'Класс не найден', 404);
+    return this.success(res, { class: updatedClass });
   }
 
-  const id = req.params.id;
+  async deleteClass(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-  try {
-    const result: QueryResult = await pool.query(
-      'DELETE FROM student_classes WHERE id = $1 RETURNING id',
-      [id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Запись не найдена' });
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const classId = req.params.id;
+    const deleted = await this.service.deleteClass(classId);
+    if (!deleted) return this.error(res, 'Класс не найден', 404);
+    return this.success(res, { message: 'Класс удален' });
+  }
+
+  async deleteAttendance(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const { student_id, subject_id, date } = req.body;
+    if (!student_id || !subject_id || !date) {
+      return this.error(res, 'Не указаны обязательные параметры', 400);
     }
-    
-    return res.json({ success: true, message: 'Студент удален из класса' });
-  } catch (error) {
-    console.error('Delete student class error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка удаления' });
-  }
-}
 
-export async function getAllTeachers(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    const deleted = await this.service.deleteAttendanceRecord(student_id, subject_id, date);
+    if (!deleted) return this.error(res, 'Запись о посещаемости не найдена', 404);
+    return this.success(res, { message: 'Запись удалена' });
   }
 
-  try {
-    const result: QueryResult = await pool.query(
-      `SELECT id, name, email, created_at 
-       FROM users 
-       WHERE role = 'teacher' 
-       ORDER BY name`
-    );
-    return res.json({ success: true, teachers: result.rows });
-  } catch (error) {
-    console.error('Get teachers error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения учителей' });
-  }
-}
+  async deleteGrade(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-export async function getAllTeacherSubjects(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
 
-  try {
-    const result: QueryResult = await pool.query(
-      `SELECT ts.id, ts.teacher_id, ts.subject_id, ts.class_id,
-              u.name as teacher_name, s.name as subject_name, c.name as class_name
-       FROM teacher_subjects ts
-       JOIN users u ON ts.teacher_id = u.id
-       JOIN subjects s ON ts.subject_id = s.id
-       JOIN classes c ON ts.class_id = c.id
-       ORDER BY c.name, s.name`
-    );
-    return res.json({ success: true, teacher_subjects: result.rows });
-  } catch (error) {
-    console.error('Get teacher subjects error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка получения данных' });
-  }
-}
-
-export async function deleteTeacherSubject(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
-
-  const id = req.params.id;
-
-  try {
-    const result: QueryResult = await pool.query(
-      'DELETE FROM teacher_subjects WHERE id = $1 RETURNING id',
-      [id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Запись не найдена' });
+    const { student_id, subject_id, grade_date } = req.body;
+    if (!student_id || !subject_id || !grade_date) {
+      return this.error(res, 'Не указаны обязательные параметры', 400);
     }
-    
-    return res.json({ success: true, message: 'Назначение удалено' });
-  } catch (error) {
-    console.error('Delete teacher subject error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка удаления' });
-  }
-}
 
-export async function updateClass(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    const deleted = await this.service.deleteGradeRecord(student_id, subject_id, grade_date);
+    if (!deleted) return this.error(res, 'Оценка не найдена', 404);
+    return this.success(res, { message: 'Оценка удалена' });
   }
 
-  const classId = req.params.id;
-  const { name, year } = req.body;
+  async deleteScheduleItem(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
 
-  try {
-    const result: QueryResult = await pool.query(
-      `UPDATE classes 
-       SET name = $1, year = $2 
-       WHERE id = $3 
-       RETURNING id, name, year, created_at`,
-      [name, year, classId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Класс не найден' });
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const scheduleId = req.params.id;
+    const deleted = await this.service.deleteScheduleItemRecord(scheduleId);
+    if (!deleted) return this.error(res, 'Запись не найдена', 404);
+    return this.success(res, { message: 'Запись удалена' });
+  }
+
+  async getClassGrades(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const classId = req.params.classId;
+    const grades = await this.service.getClassGrades(classId);
+    return this.success(res, { grades });
+  }
+
+  async getClassAverages(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const teacherCheck = this.checkTeacher(req);
+    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+
+    const classId = req.params.classId;
+    const averages = await this.service.getClassAverages(classId);
+    return this.success(res, { averages });
+  }
+
+  async getChangesForSubject(req: Request, res: Response): Promise<Response> {
+    const auth = this.checkAuth(req);
+    if (!auth.success) return this.error(res, auth.message!, 401);
+
+    const classId = req.params.classId;
+    const subjectId = req.params.subjectId;
+    const startDate = req.query.start as string;
+    const endDate = req.query.end as string;
+
+    if (!startDate || !endDate) {
+      return this.error(res, 'Не указаны даты начала и окончания', 400);
     }
-    
-    return res.json({ success: true, class: result.rows[0] });
-  } catch (error) {
-    console.error('Update class error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка обновления класса' });
+
+    const changes = await this.service.getChangesForSubject(classId, subjectId, startDate, endDate);
+    return this.success(res, { changes });
   }
 }
 
-export async function deleteClass(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
-    return res.status(403).json({ success: false, message: 'Доступ запрещен' });
-  }
+const gradebookController = new GradebookController();
 
-  const classId = req.params.id;
-
-  try {
-    const result: QueryResult = await pool.query(
-      'DELETE FROM classes WHERE id = $1 RETURNING id',
-      [classId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Класс не найден' });
+const wrap = (fn: Function) => {
+  return async (req: Request, res: Response) => {
+    try {
+      return await fn(req, res);
+    } catch (error) {
+      console.error('Error:', error);
+      return res.status(500).json({ success: false, message: 'Внутренняя ошибка сервера' });
     }
-    
-    return res.json({ success: true, message: 'Класс удален' });
-  } catch (error) {
-    console.error('Delete class error:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка удаления класса' });
-  }
-}
+  };
+};
+
+export const getAllSubjects = wrap(gradebookController.getAllSubjects.bind(gradebookController));
+export const createSubject = wrap(gradebookController.createSubject.bind(gradebookController));
+export const getAllClasses = wrap(gradebookController.getAllClasses.bind(gradebookController));
+export const createClass = wrap(gradebookController.createClass.bind(gradebookController));
+export const addStudentToClass = wrap(gradebookController.addStudentToClass.bind(gradebookController));
+export const addGrade = wrap(gradebookController.addGrade.bind(gradebookController));
+export const getStudentGrades = wrap(gradebookController.getStudentGrades.bind(gradebookController));
+export const getAverageGrade = wrap(gradebookController.getAverageGrade.bind(gradebookController));
+export const markAttendance = wrap(gradebookController.markAttendance.bind(gradebookController));
+export const getStudentAttendance = wrap(gradebookController.getStudentAttendance.bind(gradebookController));
+export const createHomework = wrap(gradebookController.createHomework.bind(gradebookController));
+export const getHomework = wrap(gradebookController.getHomework.bind(gradebookController));
+export const submitHomework = wrap(gradebookController.submitHomework.bind(gradebookController));
+export const getTeacherScheduleWithChanges = wrap(gradebookController.getTeacherScheduleWithChanges.bind(gradebookController));
+export const getTeacherSchedule = wrap(gradebookController.getTeacherSchedule.bind(gradebookController));
+export const getClassSchedule = wrap(gradebookController.getClassSchedule.bind(gradebookController));
+export const getMySubjects = wrap(gradebookController.getMySubjects.bind(gradebookController));
+export const getMyClasses = wrap(gradebookController.getMyClasses.bind(gradebookController));
+export const getClassStudents = wrap(gradebookController.getClassStudents.bind(gradebookController));
+export const createScheduleItem = wrap(gradebookController.createScheduleItem.bind(gradebookController));
+export const getDashboardStats = wrap(gradebookController.getDashboardStats.bind(gradebookController));
+export const getGradesBySubject = wrap(gradebookController.getGradesBySubject.bind(gradebookController));
+export const getAttendanceBySubject = wrap(gradebookController.getAttendanceBySubject.bind(gradebookController));
+export const getAllStudents = wrap(gradebookController.getAllStudents.bind(gradebookController));
+export const getAllTeachers = wrap(gradebookController.getAllTeachers.bind(gradebookController));
+export const updateSubject = wrap(gradebookController.updateSubject.bind(gradebookController));
+export const deleteSubject = wrap(gradebookController.deleteSubject.bind(gradebookController));
+export const createTeacher = wrap(gradebookController.createTeacher.bind(gradebookController));
+export const updateTeacher = wrap(gradebookController.updateTeacher.bind(gradebookController));
+export const deleteTeacher = wrap(gradebookController.deleteTeacher.bind(gradebookController));
+export const createStudent = wrap(gradebookController.createStudent.bind(gradebookController));
+export const updateStudent = wrap(gradebookController.updateStudent.bind(gradebookController));
+export const deleteStudent = wrap(gradebookController.deleteStudent.bind(gradebookController));
+export const getAllStudentClasses = wrap(gradebookController.getAllStudentClasses.bind(gradebookController));
+export const deleteStudentClass = wrap(gradebookController.deleteStudentClass.bind(gradebookController));
+export const getAllTeacherSubjects = wrap(gradebookController.getAllTeacherSubjects.bind(gradebookController));
+export const deleteTeacherSubject = wrap(gradebookController.deleteTeacherSubject.bind(gradebookController));
+export const assignTeacherToSubject = wrap(gradebookController.assignTeacherToSubject.bind(gradebookController));
+export const updateClass = wrap(gradebookController.updateClass.bind(gradebookController));
+export const deleteClass = wrap(gradebookController.deleteClass.bind(gradebookController));
+export const deleteAttendance = wrap(gradebookController.deleteAttendance.bind(gradebookController));
+export const deleteGrade = wrap(gradebookController.deleteGrade.bind(gradebookController));
+export const deleteScheduleItem = wrap(gradebookController.deleteScheduleItem.bind(gradebookController));
+export const getClassGrades = wrap(gradebookController.getClassGrades.bind(gradebookController));
+export const getClassAverages = wrap(gradebookController.getClassAverages.bind(gradebookController));
+export const getChangesForSubject = wrap(gradebookController.getChangesForSubject.bind(gradebookController));

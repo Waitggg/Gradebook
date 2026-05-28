@@ -23,7 +23,6 @@ import {
   getDashboardStats,
   getGradesBySubject,
   getAttendanceBySubject,
-  deleteAttendance,
   getClassStudents,
   addStudentToClass,
   getAllStudents,
@@ -41,8 +40,8 @@ import {
   updateSubject,
   deleteSubject,
   deleteScheduleItem,
-  deleteGradeByDate,
-  deleteAttendanceByDate,
+  deleteGrade,
+  deleteAttendance,
   getTeacherScheduleWithChanges,
   getChangesForSubject,
   getClassGrades,
@@ -90,13 +89,13 @@ router.post('/grades', addGrade);
 router.get('/grades/student/:studentId?', getStudentGrades);
 router.get('/grades/average/:studentId?', getAverageGrade);
 router.get('/grades/subject/:subjectId', getGradesBySubject);
-router.delete('/grades', deleteGradeByDate);
+router.delete('/grades', deleteGrade);
 
 router.post('/attendance', markAttendance);
 router.get('/attendance/student/:studentId?', getStudentAttendance);
 router.get('/attendance/subject/:subjectId', getAttendanceBySubject);
 router.delete('/attendance', deleteAttendance);
-router.delete('/attendance', deleteAttendanceByDate);
+router.delete('/attendance', deleteAttendance);
 
 router.post('/homework', createHomework);
 router.get('/homework', getHomework);

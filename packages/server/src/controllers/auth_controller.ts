@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import pool from '../db/pool';
+import { BaseController } from './base_controller';
+import { BaseService } from '../services/base_service';
 import { AuthResponseBody } from '../types/auth_types.js';
-import { QueryResult } from 'pg';
 
 interface CreateUserBody {
   email: string;
@@ -25,61 +25,64 @@ interface UserRow {
   created_at: Date;
 }
 
-interface ExistingUserRow {
-  id: string;
-}
-
-interface SessionWithUser {
-  userId?: string;
-  userName?: string;
-  userEmail?: string;
-  userRole?: 'teacher' | 'student';
-  destroy: (callback: (err: Error | null) => void) => void;
-}
-
-export async function createUser(req: Request<{}, {}, CreateUserBody>, res: Response): Promise<Response> {
-  const { email, password, name, role = 'student' } = req.body;
-
-  if (!email || !password || !name) {
-    return res.status(400).json({
-      success: false,
-      message: 'Все поля обязательны для заполнения'
-    } as AuthResponseBody);
-  }
-
-  try {
-    const existingUser: QueryResult<ExistingUserRow> = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
+class AuthService extends BaseService {
+  async findUserByEmail(email: string): Promise<UserRow | null> {
+    return this.single<UserRow>(
+      'SELECT id, email, password_hash, name, role FROM users WHERE email = $1',
       [email]
     );
+  }
 
-    if (existingUser.rows.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email уже существует'
-      } as AuthResponseBody);
-    }
+  async checkEmailExists(email: string): Promise<boolean> {
+    return this.exists('SELECT id FROM users WHERE email = $1', [email]);
+  }
 
-    const saltRounds = 10;
-    const hashedPassword: string = await bcrypt.hash(password, saltRounds);
-    
-    const result: QueryResult<UserRow> = await pool.query(
+  async createUser(email: string, hashedPassword: string, name: string, role: string): Promise<UserRow | null> {
+    return this.single<UserRow>(
       `INSERT INTO users (email, password_hash, name, role, created_at) 
        VALUES ($1, $2, $3, $4, DEFAULT) 
        RETURNING id, email, name, role, created_at`,
       [email, hashedPassword, name, role]
     );
+  }
+}
 
-    const newUser: UserRow = result.rows[0];
+class AuthController extends BaseController {
+  private authService: AuthService;
 
-    const session = req.session as SessionWithUser;
+  constructor() {
+    super();
+    this.authService = new AuthService();
+  }
+
+  async createUser(req: Request<{}, {}, CreateUserBody>, res: Response): Promise<Response> {
+    const { email, password, name, role = 'student' } = req.body;
+
+    if (!email || !password || !name) {
+      return this.error(res, 'Все поля обязательны для заполнения', 400);
+    }
+
+    const emailExists = await this.authService.checkEmailExists(email);
+    if (emailExists) {
+      return this.error(res, 'Email уже существует', 400);
+    }
+
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    const newUser = await this.authService.createUser(email, hashedPassword, name, role);
+
+    if (!newUser) {
+      return this.error(res, 'Ошибка при создании пользователя');
+    }
+
+    const session = this.getSession(req);
     session.userId = newUser.id;
     session.userName = newUser.name;
     session.userEmail = newUser.email;
     session.userRole = newUser.role;
 
-    return res.status(201).json({
-      success: true,
+    return this.success(res, {
       message: 'Пользователь создан',
       user: {
         id: newUser.id,
@@ -87,59 +90,35 @@ export async function createUser(req: Request<{}, {}, CreateUserBody>, res: Resp
         name: newUser.name,
         role: newUser.role
       }
-    } as AuthResponseBody);
-
-  } catch (error) {
-    console.error('Create user error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Ошибка при создании пользователя'
-    } as AuthResponseBody);
-  }
-}
-
-export async function authUser(req: Request<{}, {}, AuthUserBody>, res: Response): Promise<Response> {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({
-      success: false,
-      message: 'Email и пароль обязательны'
-    } as AuthResponseBody);
+    }, 201);
   }
 
-  try {
-    const result: QueryResult<UserRow> = await pool.query(
-      'SELECT id, email, password_hash, name, role FROM users WHERE email = $1',
-      [email]
-    );
+  async authUser(req: Request<{}, {}, AuthUserBody>, res: Response): Promise<Response> {
+    const { email, password } = req.body;
 
-    if (result.rows.length === 0) {
-      return res.status(401).json({
-        success: false,
-        message: 'Неверный email или пароль'
-      } as AuthResponseBody);
+    if (!email || !password) {
+      return this.error(res, 'Email и пароль обязательны', 400);
     }
 
-    const user: UserRow = result.rows[0];
-    
-    const isValid: boolean = await bcrypt.compare(password, user.password_hash);
+    const user = await this.authService.findUserByEmail(email);
+
+    if (!user) {
+      return this.error(res, 'Неверный email или пароль', 401);
+    }
+
+    const isValid = await bcrypt.compare(password, user.password_hash);
 
     if (!isValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Неверный email или пароль'
-      } as AuthResponseBody);
+      return this.error(res, 'Неверный email или пароль', 401);
     }
 
-    const session = req.session as SessionWithUser;
+    const session = this.getSession(req);
     session.userId = user.id;
     session.userName = user.name;
     session.userEmail = user.email;
     session.userRole = user.role;
 
-    return res.json({
-      success: true,
+    return this.success(res, {
       message: 'Вы успешно вошли в аккаунт',
       user: {
         id: user.id,
@@ -147,55 +126,68 @@ export async function authUser(req: Request<{}, {}, AuthUserBody>, res: Response
         name: user.name,
         role: user.role
       }
-    } as AuthResponseBody);
-
-  } catch (error) {
-    console.error('Auth error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Ошибка при авторизации'
-    } as AuthResponseBody);
-  }
-}
-
-export async function logoutUser(req: Request, res: Response): Promise<Response> {
-  return new Promise((resolve) => {
-    const session = req.session as SessionWithUser;
-    
-    session.destroy((err: Error | null) => {
-      if (err) {
-        return resolve(res.status(500).json({
-          success: false,
-          message: 'Ошибка при выходе из системы'
-        } as AuthResponseBody));
-      }
-
-      res.clearCookie('sessionId');
-      return resolve(res.json({
-        success: true,
-        message: 'Вы вышли из аккаунта'
-      } as AuthResponseBody));
     });
-  });
-}
-
-export async function getCurrentUser(req: Request, res: Response): Promise<Response> {
-  const session = req.session as SessionWithUser;
-
-  if (!session.userId) {
-    return res.status(401).json({
-      success: false,
-      message: 'Не авторизован'
-    } as AuthResponseBody);
   }
 
-  return res.json({
-    success: true,
-    user: {
-      id: session.userId,
-      name: session.userName,
-      email: session.userEmail,
-      role: session.userRole
+  async logoutUser(req: Request, res: Response): Promise<Response> {
+    return new Promise((resolve) => {
+      const session = this.getSession(req);
+      
+      session.destroy((err: Error | null) => {
+        if (err) {
+          return resolve(this.error(res, 'Ошибка при выходе из системы', 500));
+        }
+
+        res.clearCookie('sessionId');
+        return resolve(this.success(res, { message: 'Вы вышли из аккаунта' }));
+      });
+    });
+  }
+
+  async getCurrentUser(req: Request, res: Response): Promise<Response> {
+    const session = this.getSession(req);
+
+    if (!session.userId) {
+      return this.error(res, 'Не авторизован', 401);
     }
-  } as AuthResponseBody);
+
+    return this.success(res, {
+      user: {
+        id: session.userId,
+        name: session.userName,
+        email: session.userEmail,
+        role: session.userRole
+      }
+    });
+  }
 }
+
+const authController = new AuthController();
+
+export const createUser = (req: Request, res: Response) => {
+  return authController.createUser(req, res).catch(error => {
+    console.error('Create user error:', error);
+    return res.status(500).json({ success: false, message: 'Внутренняя ошибка сервера' });
+  });
+};
+
+export const authUser = (req: Request, res: Response) => {
+  return authController.authUser(req, res).catch(error => {
+    console.error('Auth error:', error);
+    return res.status(500).json({ success: false, message: 'Внутренняя ошибка сервера' });
+  });
+};
+
+export const logoutUser = (req: Request, res: Response) => {
+  return authController.logoutUser(req, res).catch(error => {
+    console.error('Logout error:', error);
+    return res.status(500).json({ success: false, message: 'Внутренняя ошибка сервера' });
+  });
+};
+
+export const getCurrentUser = (req: Request, res: Response) => {
+  return authController.getCurrentUser(req, res).catch(error => {
+    console.error('Get current user error:', error);
+    return res.status(500).json({ success: false, message: 'Внутренняя ошибка сервера' });
+  });
+};
