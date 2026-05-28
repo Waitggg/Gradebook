@@ -1,4 +1,3 @@
-// services/BaseService.ts
 import { Pool, QueryResult } from 'pg';
 import pool from '../db/pool';
 
@@ -9,7 +8,6 @@ export class BaseService {
     this.pool = pool;
   }
 
-  // Делаем методы публичными или создаём публичные обёртки
   async query<T>(sql: string, params?: any[]): Promise<T[]> {
     try {
       const result: QueryResult = await this.pool.query(sql, params);

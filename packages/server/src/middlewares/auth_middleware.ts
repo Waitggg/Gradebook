@@ -5,7 +5,7 @@ export class SessionUser {
   constructor(
     public readonly id: string,
     public readonly email: string,
-    public readonly role: 'teacher' | 'student'
+    public readonly role: 'teacher' | 'student' | 'admin'
   ) {}
 
   isTeacher(): boolean {
@@ -14,6 +14,10 @@ export class SessionUser {
 
   isStudent(): boolean {
     return this.role === 'student';
+  }
+
+  isAdmin(): boolean {
+    return this.role === 'admin';
   }
 
   toJSON() {

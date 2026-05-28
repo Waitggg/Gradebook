@@ -5,7 +5,7 @@ interface SessionWithUser {
   userId?: string;
   userName?: string;
   userEmail?: string;
-  userRole?: 'teacher' | 'student';
+  userRole?: 'teacher' | 'student' | 'admin';
   destroy: (callback: (err: Error | null) => void) => void;
 }
 
@@ -24,7 +24,7 @@ export class BaseController {
 
   protected checkTeacher(req: Request): { success: boolean; message?: string } {
     const session = this.getSession(req);
-    if (session.userRole !== 'teacher') {
+    if (session.userRole !== 'teacher' && session.userRole !== 'admin') {
       return { success: false, message: 'Доступ запрещен' };
     }
     return { success: true };

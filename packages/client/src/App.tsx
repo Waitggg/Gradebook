@@ -67,9 +67,7 @@ function App() {
         } />
         
         <Route path="/manage-students" element={
-          isAuth ? 
-            <ManageStudentsPage /> : 
-            <Navigate to="/login" replace />
+            <ManageStudentsPage /> 
         } />
       </Routes>
     </BrowserRouter>

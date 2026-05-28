@@ -66,7 +66,18 @@ class GradebookService extends BaseService {
          GROUP BY s.id`,
         [userId]
       );
-    } else {
+    } 
+    else if (role === 'admin')
+    {
+      return this.query(
+        `SELECT DISTINCT s.id, s.name, s.description, array_agg(DISTINCT c.name) as classes
+         FROM teacher_subjects ts
+         JOIN subjects s ON ts.subject_id = s.id
+         JOIN classes c ON ts.class_id = c.id
+         GROUP BY s.id`
+      );
+    }
+    else {
       return this.query(
         `SELECT DISTINCT s.id, s.name, s.description
          FROM student_classes sc
@@ -328,6 +339,15 @@ class GradebookService extends BaseService {
          WHERE ts.teacher_id = $1 
          ORDER BY c.name`,
         [userId]
+      );
+    }
+    else if (role === 'admin')
+    {
+      return this.query(
+        `SELECT DISTINCT c.id, c.name, c.year, c.created_at
+         FROM teacher_subjects ts 
+         JOIN classes c ON ts.class_id = c.id
+         ORDER BY c.name`
       );
     }
     return this.query(

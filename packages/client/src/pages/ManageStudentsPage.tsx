@@ -51,7 +51,6 @@ interface TeacherSubject {
 function ManageStudentsPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<'teacher' | 'student' | null>(null);
   const [activeTab, setActiveTab] = useState('students');
   
   const [students, setStudents] = useState<Student[]>([]);
@@ -89,11 +88,10 @@ function ManageStudentsPage() {
       const response = await fetch('/api/auth/profile', { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
-        if (data.user.role !== 'teacher') {
+        if (data.user.role !== 'admin') {
           navigate('/profile');
           return;
         }
-        setUserRole(data.user.role);
         await loadAllData();
       } else {
         navigate('/login');

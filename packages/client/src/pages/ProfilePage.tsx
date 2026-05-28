@@ -18,11 +18,6 @@ interface Class {
   year: number;
 }
 
-interface Subject {
-  id: number;
-  name: string;
-}
-
 interface GradeData {
   date: string;
   grade: number;
@@ -323,7 +318,7 @@ const renderAveragesTable = (averages: SubjectAverage[]) => {
             <h1 className="profile-title">{user.name}</h1>
             <p className="profile-subtitle">{user.email}</p>
             <div className="role-badge-header">
-              {user.role === 'teacher' ? 'Учитель' : 'Студент'}
+              {user.role === 'admin' ? 'Админ' : user.role === 'teacher' ? 'Учитель' : 'Студент'}
             </div>
           </div>
 

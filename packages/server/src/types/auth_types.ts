@@ -5,12 +5,12 @@ declare module 'express-session' {
   interface SessionData {
     userId: string;
     userEmail: string;
-    userRole: 'teacher' | 'student';
+    userRole: 'teacher' | 'student' | 'admin';
     isLoggedIn: boolean;
   }
 }
 
-export type Role = 'teacher' | 'student';
+export type Role = 'teacher' | 'student' | 'admin';
 
 export interface AuthRequestBody {
   email: string;

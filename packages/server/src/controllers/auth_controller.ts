@@ -8,7 +8,7 @@ interface CreateUserBody {
   email: string;
   password: string;
   name: string;
-  role?: 'teacher' | 'student';
+  role?: 'teacher' | 'student' | 'admin';
 }
 
 interface AuthUserBody {
@@ -20,7 +20,7 @@ interface UserRow {
   id: string;
   email: string;
   name: string;
-  role: 'teacher' | 'student';
+  role: 'teacher' | 'student' | 'admin';
   password_hash: string;
   created_at: Date;
 }

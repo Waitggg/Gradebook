@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import GradeNotification from './Notification';
 
 interface User {
   id: string;
   name: string;
   email: string;
-  role: 'teacher' | 'student';
+  role: 'teacher' | 'student' | 'admin';
 }
 
 function Header() {
-  const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -38,7 +37,7 @@ function Header() {
     { path: '/schedule', label: 'Расписание' },
   ];
 
-  if (user?.role === 'teacher') {
+  if (user?.role === 'admin') {
     navLinks.push({ path: '/manage-students', label: 'Управление'});
   }
 
@@ -82,7 +81,7 @@ function Header() {
             <div className="user-details">
               <span className="user-name">{user?.name}</span>
               <span className="user-role">
-                {user?.role === 'teacher' ? 'Учитель' : 'Ученик'}
+              {user?.role === 'admin' ? 'Админ' : user?.role === 'teacher' ? 'Учитель' : 'Студент'}
               </span>
             </div>
           </div>
