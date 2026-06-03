@@ -58,21 +58,24 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
-DO $$ 
+DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_subject_name') THEN
         ALTER TABLE subjects ADD CONSTRAINT unique_subject_name UNIQUE (name);
     END IF;
-    
+
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_class_name') THEN
         ALTER TABLE classes ADD CONSTRAINT unique_class_name UNIQUE (name);
     END IF;
-    
+
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_user_email') THEN
         ALTER TABLE users ADD CONSTRAINT unique_user_email UNIQUE (email);
     END IF;
 END $$;
 
+ALTER TABLE subjects ADD CONSTRAINT unique_subject_name UNIQUE (name);
+ALTER TABLE classes ADD CONSTRAINT unique_class_name UNIQUE (name);
+ALTER TABLE users ADD CONSTRAINT unique_user_email UNIQUE (email);
 ALTER TABLE grades ADD COLUMN IF NOT EXISTS grade_type grade_type DEFAULT 'classwork';
 
 CREATE TABLE IF NOT EXISTS homework (
@@ -163,3 +166,6 @@ INSERT INTO classes (name, year) VALUES
     ('Т-395', 2027),
     ('Т-396', 2027)
 ON CONFLICT DO NOTHING;
+
+ALTER TABLE grades ADD COLUMN IF NOT EXISTS homework_id INTEGER REFERENCES homework_submissions(id) ON DELETE SET NULL;
+ALTER TYPE grade_type ADD VALUE 'lab';

@@ -55,7 +55,7 @@ class GradebookService extends BaseService {
     return this.query('SELECT id, name, description, created_at FROM subjects ORDER BY name');
   }
 
-    async getMySubjects(userId: string, role: string): Promise<any[]> {
+  async getMySubjects(userId: string, role: string): Promise<any[]> {
     if (role === 'teacher') {
       return this.query(
         `SELECT DISTINCT s.id, s.name, s.description, array_agg(DISTINCT c.name) as classes
@@ -66,9 +66,7 @@ class GradebookService extends BaseService {
          GROUP BY s.id`,
         [userId]
       );
-    } 
-    else if (role === 'admin')
-    {
+    } else if (role === 'admin') {
       return this.query(
         `SELECT DISTINCT s.id, s.name, s.description, array_agg(DISTINCT c.name) as classes
          FROM teacher_subjects ts
@@ -76,8 +74,7 @@ class GradebookService extends BaseService {
          JOIN classes c ON ts.class_id = c.id
          GROUP BY s.id`
       );
-    }
-    else {
+    } else {
       return this.query(
         `SELECT DISTINCT s.id, s.name, s.description
          FROM student_classes sc
@@ -88,7 +85,6 @@ class GradebookService extends BaseService {
       );
     }
   }
-
 
   async createSubject(name: string, description: string | null): Promise<any> {
     return this.single(
@@ -118,8 +114,8 @@ class GradebookService extends BaseService {
 
   async addStudentToClass(studentId: number, classId: number): Promise<any> {
     return this.single(
-      `INSERT INTO student_classes (student_id, class_id) 
-       VALUES ($1, $2) 
+      `INSERT INTO student_classes (student_id, class_id)
+       VALUES ($1, $2)
        ON CONFLICT (student_id, class_id) DO NOTHING
        RETURNING id, student_id, class_id, joined_at`,
       [studentId, classId]
@@ -131,7 +127,7 @@ class GradebookService extends BaseService {
       return this.query(
         `SELECT g.id, g.grade, to_char(g.grade_date, 'YYYY-MM-DD') as grade_date,
                 g.semester, g.comment, g.grade_type, s.id as subject_id, s.name as subject_name
-         FROM grades g 
+         FROM grades g
          JOIN subjects s ON g.subject_id = s.id
          WHERE g.student_id = $1 AND g.subject_id = $2
          ORDER BY g.grade_date DESC, g.id DESC`,
@@ -141,7 +137,7 @@ class GradebookService extends BaseService {
     return this.query(
       `SELECT g.id, g.grade, to_char(g.grade_date, 'YYYY-MM-DD') as grade_date,
               g.semester, g.comment, g.grade_type, s.id as subject_id, s.name as subject_name
-       FROM grades g 
+       FROM grades g
        JOIN subjects s ON g.subject_id = s.id
        WHERE g.student_id = $1
        ORDER BY g.grade_date DESC, g.id DESC`,
@@ -153,10 +149,10 @@ class GradebookService extends BaseService {
     return this.query(
       `SELECT s.id as subject_id, s.name as subject_name,
        AVG(g.grade) as average_grade, COUNT(g.id) as grades_count
-       FROM grades g 
+       FROM grades g
        JOIN subjects s ON g.subject_id = s.id
        WHERE g.student_id = $1
-       GROUP BY s.id, s.name 
+       GROUP BY s.id, s.name
        ORDER BY s.name`,
       [studentId]
     );
@@ -164,7 +160,7 @@ class GradebookService extends BaseService {
 
   async upsertGrade(data: any, teacherId: string, targetDate: string): Promise<any> {
     const existing = await this.single(
-      `SELECT id FROM grades 
+      `SELECT id FROM grades
        WHERE student_id = $1 AND subject_id = $2 AND grade_date::date = $3::date`,
       [data.student_id, data.subject_id, targetDate]
     );
@@ -172,23 +168,23 @@ class GradebookService extends BaseService {
     if (existing) {
       return this.single(
         `UPDATE grades
-         SET grade = $1, teacher_id = $2, semester = $3, comment = $4, 
+         SET grade = $1, teacher_id = $2, semester = $3, comment = $4,
              grade_type = $5, updated_at = CURRENT_TIMESTAMP
          WHERE student_id = $6 AND subject_id = $7 AND grade_date::date = $8::date
-         RETURNING id, student_id, subject_id, grade, 
-                   to_char(grade_date, 'YYYY-MM-DD') as grade_date, 
+         RETURNING id, student_id, subject_id, grade,
+                   to_char(grade_date, 'YYYY-MM-DD') as grade_date,
                    semester, comment, grade_type`,
-        [data.grade, teacherId, data.semester, data.comment, data.grade_type, 
+        [data.grade, teacherId, data.semester, data.comment, data.grade_type,
          data.student_id, data.subject_id, targetDate]
       );
     }
     return this.single(
-      `INSERT INTO grades (student_id, subject_id, teacher_id, grade, grade_date, semester, comment, grade_type) 
-       VALUES ($1, $2, $3, $4, $5::date, $6, $7, $8) 
-       RETURNING id, student_id, subject_id, grade, 
-                 to_char(grade_date, 'YYYY-MM-DD') as grade_date, 
+      `INSERT INTO grades (student_id, subject_id, teacher_id, grade, grade_date, semester, comment, grade_type)
+       VALUES ($1, $2, $3, $4, $5::date, $6, $7, $8)
+       RETURNING id, student_id, subject_id, grade,
+                 to_char(grade_date, 'YYYY-MM-DD') as grade_date,
                  semester, comment, grade_type`,
-      [data.student_id, data.subject_id, teacherId, data.grade, targetDate, 
+      [data.student_id, data.subject_id, teacherId, data.grade, targetDate,
        data.semester, data.comment, data.grade_type]
     );
   }
@@ -209,12 +205,12 @@ class GradebookService extends BaseService {
       );
     }
     return this.single(
-      `INSERT INTO attendance (student_id, subject_id, date, status) 
-       VALUES ($1, $2, $3::date, $4) 
-       ON CONFLICT (student_id, subject_id, date) 
+      `INSERT INTO attendance (student_id, subject_id, date, status)
+       VALUES ($1, $2, $3::date, $4)
+       ON CONFLICT (student_id, subject_id, date)
        DO UPDATE SET status = $4
-       RETURNING id, student_id, subject_id, 
-                 to_char(date, 'YYYY-MM-DD') as date, 
+       RETURNING id, student_id, subject_id,
+                 to_char(date, 'YYYY-MM-DD') as date,
                  status`,
       [studentId, subjectId, targetDate, status]
     );
@@ -224,7 +220,7 @@ class GradebookService extends BaseService {
     if (subjectId) {
       return this.query(
         `SELECT a.id, to_char(a.date, 'YYYY-MM-DD') as date, a.status, s.name as subject_name
-         FROM attendance a 
+         FROM attendance a
          JOIN subjects s ON a.subject_id = s.id
          WHERE a.student_id = $1 AND a.subject_id = $2
          ORDER BY a.date DESC`,
@@ -233,7 +229,7 @@ class GradebookService extends BaseService {
     }
     return this.query(
       `SELECT a.id, to_char(a.date, 'YYYY-MM-DD') as date, a.status, s.name as subject_name
-       FROM attendance a 
+       FROM attendance a
        JOIN subjects s ON a.subject_id = s.id
        WHERE a.student_id = $1
        ORDER BY a.date DESC`,
@@ -243,8 +239,8 @@ class GradebookService extends BaseService {
 
   async createHomework(subjectId: number, teacherId: string, title: string, description: string, dueDate: Date): Promise<any> {
     return this.single(
-      `INSERT INTO homework (subject_id, teacher_id, title, description, due_date) 
-       VALUES ($1, $2, $3, $4, $5) 
+      `INSERT INTO homework (subject_id, teacher_id, title, description, due_date)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING id, subject_id, teacher_id, title, description, due_date, created_at`,
       [subjectId, teacherId, title, description, dueDate]
     );
@@ -264,9 +260,9 @@ class GradebookService extends BaseService {
 
   async submitHomework(homeworkId: number, studentId: string, submissionText: string): Promise<any> {
     return this.single(
-      `INSERT INTO homework_submissions (homework_id, student_id, submission_text) 
-       VALUES ($1, $2, $3) 
-       ON CONFLICT (homework_id, student_id) 
+      `INSERT INTO homework_submissions (homework_id, student_id, submission_text)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (homework_id, student_id)
        DO UPDATE SET submission_text = $3, submitted_at = CURRENT_TIMESTAMP
        RETURNING id, homework_id, student_id, submission_text, submitted_at`,
       [homeworkId, studentId, submissionText]
@@ -334,27 +330,25 @@ class GradebookService extends BaseService {
     if (role === 'teacher') {
       return this.query(
         `SELECT DISTINCT c.id, c.name, c.year, c.created_at
-         FROM teacher_subjects ts 
+         FROM teacher_subjects ts
          JOIN classes c ON ts.class_id = c.id
-         WHERE ts.teacher_id = $1 
+         WHERE ts.teacher_id = $1
          ORDER BY c.name`,
         [userId]
       );
-    }
-    else if (role === 'admin')
-    {
+    } else if (role === 'admin') {
       return this.query(
         `SELECT DISTINCT c.id, c.name, c.year, c.created_at
-         FROM teacher_subjects ts 
+         FROM teacher_subjects ts
          JOIN classes c ON ts.class_id = c.id
          ORDER BY c.name`
       );
     }
     return this.query(
       `SELECT DISTINCT c.id, c.name, c.year, c.created_at
-       FROM student_classes sc 
+       FROM student_classes sc
        JOIN classes c ON sc.class_id = c.id
-       WHERE sc.student_id = $1 
+       WHERE sc.student_id = $1
        ORDER BY c.name`,
       [userId]
     );
@@ -373,9 +367,9 @@ class GradebookService extends BaseService {
 
   async createScheduleItem(subjectId: number, teacherId: string, classId: number, dayOfWeek: number, lessonNumber: number, room: string): Promise<any> {
     return this.single(
-      `INSERT INTO schedule (subject_id, teacher_id, class_id, day_of_week, lesson_number, room) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
-       ON CONFLICT (class_id, day_of_week, lesson_number) 
+      `INSERT INTO schedule (subject_id, teacher_id, class_id, day_of_week, lesson_number, room)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (class_id, day_of_week, lesson_number)
        DO UPDATE SET subject_id = $1, teacher_id = $2, room = $6
        RETURNING id`,
       [subjectId, teacherId, classId, dayOfWeek, lessonNumber, room]
@@ -417,7 +411,7 @@ class GradebookService extends BaseService {
     return {
       average_grade: parseFloat(gradesResult?.average || '0'),
       total_grades: parseInt(gradesResult?.total || '0'),
-      attendance_rate: (parseInt(attendanceResult?.total || '0') > 0 
+      attendance_rate: (parseInt(attendanceResult?.total || '0') > 0
         ? Math.round((parseInt(attendanceResult?.present || '0') / parseInt(attendanceResult?.total || '0')) * 100)
         : 0),
       subjects_count: parseInt(subjectsResult?.count || '0')
@@ -439,7 +433,7 @@ class GradebookService extends BaseService {
     return this.query(
       `SELECT g.id, g.grade, to_char(g.grade_date, 'YYYY-MM-DD') as grade_date,
               g.comment, g.grade_type, u.id as student_id, u.name as student_name
-       FROM grades g 
+       FROM grades g
        JOIN users u ON g.student_id = u.id
        WHERE g.subject_id = $1
        ORDER BY g.grade_date DESC, g.id DESC`,
@@ -450,7 +444,7 @@ class GradebookService extends BaseService {
   async getGradesBySubjectForStudent(subjectId: string, studentId: number): Promise<any[]> {
     return this.query(
       `SELECT id, grade, to_char(grade_date, 'YYYY-MM-DD') as grade_date, comment, grade_type
-       FROM grades 
+       FROM grades
        WHERE subject_id = $1 AND student_id = $2
        ORDER BY grade_date DESC`,
       [subjectId, studentId]
@@ -460,9 +454,9 @@ class GradebookService extends BaseService {
   async getAttendanceBySubjectForTeacher(subjectId: string): Promise<any[]> {
     return this.query(
       `SELECT a.id, to_char(a.date, 'YYYY-MM-DD') as date, a.status, u.id as student_id, u.name as student_name
-       FROM attendance a 
+       FROM attendance a
        JOIN users u ON a.student_id = u.id
-       WHERE a.subject_id = $1 
+       WHERE a.subject_id = $1
        ORDER BY a.date DESC`,
       [subjectId]
     );
@@ -471,8 +465,8 @@ class GradebookService extends BaseService {
   async getAttendanceBySubjectForStudent(subjectId: string, studentId: number): Promise<any[]> {
     return this.query(
       `SELECT id, to_char(date, 'YYYY-MM-DD') as date, status, to_char(created_at, 'HH24:MI:SS') as created_time
-       FROM attendance 
-       WHERE subject_id = $1 AND student_id = $2 
+       FROM attendance
+       WHERE subject_id = $1 AND student_id = $2
        ORDER BY date DESC`,
       [subjectId, studentId]
     );
@@ -480,27 +474,27 @@ class GradebookService extends BaseService {
 
   async getAllStudents(): Promise<any[]> {
     return this.query(
-      `SELECT id, name, email, created_at 
-       FROM users 
-       WHERE role = 'student' 
+      `SELECT id, name, email, created_at
+       FROM users
+       WHERE role = 'student'
        ORDER BY name`
     );
   }
 
   async getAllTeachers(): Promise<any[]> {
     return this.query(
-      `SELECT id, name, email, created_at 
-       FROM users 
-       WHERE role = 'teacher' 
+      `SELECT id, name, email, created_at
+       FROM users
+       WHERE role = 'teacher'
        ORDER BY name`
     );
   }
 
   async updateSubject(subjectId: string, name: string, description: string): Promise<any> {
     return this.single(
-      `UPDATE subjects 
-       SET name = $1, description = $2 
-       WHERE id = $3 
+      `UPDATE subjects
+       SET name = $1, description = $2
+       WHERE id = $3
        RETURNING id, name, description, created_at`,
       [name, description, subjectId]
     );
@@ -513,8 +507,8 @@ class GradebookService extends BaseService {
 
   async createUser(name: string, email: string, hashedPassword: string, role: string): Promise<any> {
     return this.single(
-      `INSERT INTO users (name, email, password_hash, role, created_at) 
-       VALUES ($1, $2, $3, $4, DEFAULT) 
+      `INSERT INTO users (name, email, password_hash, role, created_at)
+       VALUES ($1, $2, $3, $4, DEFAULT)
        RETURNING id, name, email, created_at`,
       [name, email, hashedPassword, role]
     );
@@ -522,9 +516,9 @@ class GradebookService extends BaseService {
 
   async updateUser(userId: string, name: string, email: string, role: string): Promise<any> {
     return this.single(
-      `UPDATE users 
-       SET name = $1, email = $2 
-       WHERE id = $3 AND role = $4 
+      `UPDATE users
+       SET name = $1, email = $2
+       WHERE id = $3 AND role = $4
        RETURNING id, name, email, created_at`,
       [name, email, userId, role]
     );
@@ -570,9 +564,9 @@ class GradebookService extends BaseService {
 
   async updateClass(classId: string, name: string, year: number): Promise<any> {
     return this.single(
-      `UPDATE classes 
-       SET name = $1, year = $2 
-       WHERE id = $3 
+      `UPDATE classes
+       SET name = $1, year = $2
+       WHERE id = $3
        RETURNING id, name, year, created_at`,
       [name, year, classId]
     );
@@ -606,8 +600,8 @@ class GradebookService extends BaseService {
 
   async assignTeacherToSubject(teacherId: number, subjectId: number, classId: number): Promise<any> {
     return this.single(
-      `INSERT INTO teacher_subjects (teacher_id, subject_id, class_id) 
-       VALUES ($1, $2, $3) 
+      `INSERT INTO teacher_subjects (teacher_id, subject_id, class_id)
+       VALUES ($1, $2, $3)
        ON CONFLICT (teacher_id, subject_id, class_id) DO NOTHING
        RETURNING *`,
       [teacherId, subjectId, classId]
@@ -991,8 +985,6 @@ class GradebookController extends BaseController {
     return this.success(res, { classes });
   }
 
-  
-
   async getClassStudents(req: Request, res: Response): Promise<Response> {
     const auth = this.checkAuth(req);
     if (!auth.success) return this.error(res, auth.message!, 401);
@@ -1366,6 +1358,36 @@ class GradebookController extends BaseController {
     const averages = await this.service.getClassAverages(classId);
     return this.success(res, { averages });
   }
+  
+  async deleteGradeByDate(req: Request, res: Response) {
+    const { student_id, subject_id, grade_date } = req.body;
+    
+    const success = await this.service.deleteGradeRecord(
+      parseInt(student_id),
+      parseInt(subject_id),
+      grade_date
+    );
+    
+    if (!success) {
+      return res.status(404).json({ success: false, message: 'Оценка не найдена' });
+    }
+    return res.json({ success: true, message: 'Оценка успешно удалена' });
+  }
+  
+  async deleteAttendanceByDate(req: Request, res: Response) {
+    const { student_id, subject_id, date } = req.body;
+    
+    const success = await this.service.deleteAttendanceRecord(
+      parseInt(student_id),
+      parseInt(subject_id),
+      date
+    );
+    
+    if (!success) {
+      return res.status(404).json({ success: false, message: 'Запись посещаемости не найдена' });
+    }
+    return res.json({ success: true, message: 'Запись посещаемости успешно удалена' });
+  }
 
   async getChangesForSubject(req: Request, res: Response): Promise<Response> {
     const auth = this.checkAuth(req);
@@ -1444,3 +1466,5 @@ export const deleteScheduleItem = wrap(gradebookController.deleteScheduleItem.bi
 export const getClassGrades = wrap(gradebookController.getClassGrades.bind(gradebookController));
 export const getClassAverages = wrap(gradebookController.getClassAverages.bind(gradebookController));
 export const getChangesForSubject = wrap(gradebookController.getChangesForSubject.bind(gradebookController));
+export const deleteGradeByDate = wrap(gradebookController.deleteGradeByDate.bind(gradebookController));
+export const deleteAttendanceByDate = wrap(gradebookController.deleteAttendanceByDate.bind(gradebookController));

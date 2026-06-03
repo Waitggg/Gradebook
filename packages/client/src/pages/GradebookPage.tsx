@@ -95,6 +95,8 @@ function GradebookPage() {
   
   const [monthDates, setMonthDates] = useState<string[]>([]);
   const [studentsGrades, setStudentsGrades] = useState<StudentGrades[]>([]);
+  const [scheduleDays, setScheduleDays] = useState<number[]>([]);
+  const [lessonTimes, setLessonTimes] = useState<LessonTime[]>([]);
   
   const [editingCell, setEditingCell] = useState<{ studentId: number; date: string } | null>(null);
   const [editValue, setEditValue] = useState<string>('');
@@ -152,6 +154,7 @@ function GradebookPage() {
         
         if (data.user.role === 'teacher' || data.user.role === 'admin') {
           await loadTeacherData();
+          await loadLessonTimes();
         } else {
           await loadStudentData();
         }
@@ -177,6 +180,7 @@ function GradebookPage() {
         const subjectsData = await subjectsRes.json();
         setSubjects(subjectsData.subjects || []);
       }
+      
       if (classesRes.ok) {
         const classesData = await classesRes.json();
         setClasses(classesData.classes || []);
@@ -186,6 +190,17 @@ function GradebookPage() {
     }
   };
 
+  const loadLessonTimes = async () => {
+    try {
+      const response = await fetch('/api/schedule/lesson-times', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setLessonTimes(data.lesson_times || []);
+      }
+    } catch (error) {
+      console.error('Load lesson times error:', error);
+    }
+  };
 
 const loadTeacherGradebookData = async () => {
   if (!selectedClass || !selectedSubject) return;
@@ -212,6 +227,7 @@ const loadTeacherGradebookData = async () => {
       });
       
       uniqueDays = [...scheduleMap.keys()];
+      setScheduleDays(uniqueDays);
     }
     
     const now = new Date();
@@ -377,6 +393,7 @@ const loadStudentData = async () => {
     if (lessonTimesRes.ok) {
       const lessonTimesData = await lessonTimesRes.json();
       lessonTimesList = lessonTimesData.lesson_times || [];
+      setLessonTimes(lessonTimesList);
     }
     
     const subjectsWithGrades = await Promise.all(

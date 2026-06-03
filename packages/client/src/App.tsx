@@ -6,6 +6,8 @@ import ProfilePage from './pages/ProfilePage';
 import GradebookPage from './pages/GradebookPage';
 import SchedulePage from './pages/SchedulePage';
 import ManageStudentsPage from './pages/ManageStudentsPage';
+import LabStudentPage from './pages/LabStudentPage';
+import TeacherLabCheckPage from './pages/TeacherLabCheckPage';
 
 function App() {
   const [isAuth, setIsAuth] = useState<boolean>(false);
@@ -55,19 +57,33 @@ function App() {
         } />
         
         <Route path="/gradebook" element={
-          isAuth ? 
-            <GradebookPage /> : 
+          isAuth ?
+            <GradebookPage /> :
             <Navigate to="/login" replace />
         } />
         
         <Route path="/schedule" element={
-          isAuth ? 
-            <SchedulePage /> : 
+          isAuth ?
+            <SchedulePage /> :
             <Navigate to="/login" replace />
         } />
         
         <Route path="/manage-students" element={
-            <ManageStudentsPage /> 
+          isAuth ?
+            <ManageStudentsPage /> :
+            <Navigate to="/login" replace />
+        } />
+
+        <Route path="/labs" element={
+          isAuth ?
+              <LabStudentPage /> :
+              <Navigate to="/login" replace />
+        } />
+
+        <Route path="/check-labs" element={
+          isAuth ?
+              <TeacherLabCheckPage /> :
+              <Navigate to="/login" replace />
         } />
       </Routes>
     </BrowserRouter>

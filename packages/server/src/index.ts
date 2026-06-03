@@ -10,6 +10,8 @@ import gradebookRoutes from './routes/gradebook_routes.js';
 import scheduleRoutes from './routes/schedule_routes.js';
 import dotenv from 'dotenv';
 import path from 'path';
+import labRoutes from './routes/lab_routes';
+
 
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 
@@ -50,6 +52,10 @@ const sessionMiddleware = session({
 
 app.use(sessionMiddleware);
 
+app.use('/api/auth', authRoutes);
+app.use('/api/gradebook', gradebookRoutes);
+app.use('/api/schedule', scheduleRoutes);
+app.use('/api/labs', labRoutes);
 io.engine.use(sessionMiddleware);
 
 const userSockets = new Map();

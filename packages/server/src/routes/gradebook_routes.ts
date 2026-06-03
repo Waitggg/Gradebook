@@ -39,13 +39,16 @@ import {
   deleteTeacher,
   updateSubject,
   deleteSubject,
+  getTeacherSchedule,
   deleteScheduleItem,
   deleteGrade,
   deleteAttendance,
   getTeacherScheduleWithChanges,
   getChangesForSubject,
   getClassGrades,
-  getClassAverages
+  getClassAverages,
+  deleteGradeByDate,
+  deleteAttendanceByDate
 } from '../controllers/gradebook_controller.js';
 
 const router = Router();
@@ -90,12 +93,13 @@ router.get('/grades/student/:studentId?', getStudentGrades);
 router.get('/grades/average/:studentId?', getAverageGrade);
 router.get('/grades/subject/:subjectId', getGradesBySubject);
 router.delete('/grades', deleteGrade);
+router.delete('/grades', deleteGradeByDate);
 
 router.post('/attendance', markAttendance);
 router.get('/attendance/student/:studentId?', getStudentAttendance);
 router.get('/attendance/subject/:subjectId', getAttendanceBySubject);
 router.delete('/attendance', deleteAttendance);
-router.delete('/attendance', deleteAttendance);
+router.delete('/attendance', deleteAttendanceByDate);
 
 router.post('/homework', createHomework);
 router.get('/homework', getHomework);
@@ -106,6 +110,7 @@ router.get('/classes/:classId/students', getClassStudents);
 
 router.get('/schedule/class/:classId', getClassSchedule);
 router.get('/teacher/schedule', getTeacherScheduleWithChanges);
+router.get('/teacher/schedule', getTeacherSchedule);
 router.post('/schedule', createScheduleItem);
 router.delete('/schedule/:id', deleteScheduleItem);
 

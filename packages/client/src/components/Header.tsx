@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import GradeNotification from './Notification';
 
 interface User {
@@ -10,6 +10,7 @@ interface User {
 }
 
 function Header() {
+  const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -38,7 +39,14 @@ function Header() {
   ];
 
   if (user?.role === 'admin') {
+
+  if (user?.role === 'student') {
+    navLinks.push({ path: '/labs', label: 'Лабораторные работы' });
+  }
+
+  if (user?.role === 'teacher') {
     navLinks.push({ path: '/manage-students', label: 'Управление'});
+    navLinks.push({ path: '/check-labs', label: 'Проверка работ' });
   }
 
   const isActive = (path: string) => {
@@ -46,18 +54,18 @@ function Header() {
   };
 
   return (
-    <header className="header">
-      <div className="header-container">
-        <Link to="/profile" className="logo">
-          <span className="logo-text">GradeBook</span>
-        </Link>
+      <header className="header">
+        <div className="header-container">
+          <Link to="/profile" className="logo">
+            <span className="logo-text">GradeBook</span>
+          </Link>
 
-        <button 
-          className="mobile-menu-btn"
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-        >
-          ☰
-        </button>
+          <button
+              className="mobile-menu-btn"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+          >
+            ☰
+          </button>
 
         <nav className={`nav-menu ${isMenuOpen ? 'open' : ''}`}>
           {navLinks.map((link) => (
@@ -83,13 +91,13 @@ function Header() {
               <span className="user-role">
               {user?.role === 'admin' ? 'Админ' : user?.role === 'teacher' ? 'Учитель' : 'Студент'}
               </span>
-            </div>
-          </div>
+                </div>
+              </div>
             </a>
+          </div>
         </div>
-      </div>
 
-      <style>{`
+        <style>{`
         .header {
           background: white;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -277,7 +285,7 @@ function Header() {
         }
         }
       `}</style>
-    </header>
+      </header>
   );
 }
 

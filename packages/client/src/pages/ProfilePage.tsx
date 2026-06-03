@@ -1,3 +1,4 @@
+// pages/ProfilePage.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -225,7 +226,7 @@ const fetchStudentGrades = async () => {
             <div className="chart-container">
               {data.dates.map((date, idx) => (
                 <div key={idx} className="chart-bar-container">
-                  <div 
+                  <div
                     className="chart-bar"
                     style={{
                       height: `${(data.grades[idx] / maxGrade) * chartHeight}px`,
@@ -262,20 +263,20 @@ const renderAveragesTable = (averages: SubjectAverage[]) => {
       </thead>
       <tbody>
         {averages.map((avg, idx) => {
-          const averageGrade = typeof avg.average_grade === 'string' 
-            ? parseFloat(avg.average_grade) 
+          const averageGrade = typeof avg.average_grade === 'string'
+            ? parseFloat(avg.average_grade)
             : avg.average_grade;
           
-          const displayGrade = !isNaN(averageGrade) && averageGrade > 0 
-            ? averageGrade.toFixed(2) 
+          const displayGrade = !isNaN(averageGrade) && averageGrade > 0
+            ? averageGrade.toFixed(2)
             : '—';
           
           return (
             <tr key={idx}>
               <td>{avg.subject_name || '—'}</td>
               <td>
-                <span 
-                  className="average-grade" 
+                <span
+                  className="average-grade"
                   style={{ color: getGradeColor(averageGrade || 0) }}
                 >
                   {displayGrade}

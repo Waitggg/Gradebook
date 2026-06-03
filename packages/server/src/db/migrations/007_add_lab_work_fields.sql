@@ -1,0 +1,11 @@
+ALTER TABLE homework ADD COLUMN IF NOT EXISTS is_group BOOLEAN DEFAULT FALSE;
+ALTER TABLE homework ADD COLUMN IF NOT EXISTS issued_date DATE DEFAULT CURRENT_DATE;
+ALTER TABLE homework ADD COLUMN IF NOT EXISTS homework_type VARCHAR(20) DEFAULT 'homework' CHECK (homework_type IN ('homework', 'lab'));
+ALTER TABLE homework ADD COLUMN IF NOT EXISTS materials JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE homework ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE homework_submissions ADD COLUMN IF NOT EXISTS file_path TEXT;
+ALTER TABLE grades ADD COLUMN IF NOT EXISTS homework_id INTEGER REFERENCES homework(id) ON DELETE SET NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_grades_lab_unique ON grades (student_id, subject_id, grade_date, homework_id) WHERE homework_id IS NOT NULL AND grade_type = 'lab';
+UPDATE homework SET homework_type = 'homework' WHERE homework_type IS NULL;
+UPDATE homework SET materials = '[]'::jsonb WHERE materials IS NULL;
+UPDATE homework SET is_group = FALSE WHERE is_group IS NULL;
