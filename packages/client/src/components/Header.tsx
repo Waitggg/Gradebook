@@ -38,8 +38,6 @@ function Header() {
     { path: '/schedule', label: 'Расписание' },
   ];
 
-  if (user?.role === 'admin') {
-
   if (user?.role === 'student') {
     navLinks.push({ path: '/labs', label: 'Лабораторные работы' });
   }
