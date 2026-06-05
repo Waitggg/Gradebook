@@ -8,6 +8,8 @@ import SchedulePage from './pages/SchedulePage';
 import ManageStudentsPage from './pages/ManageStudentsPage';
 import LabStudentPage from './pages/LabStudentPage';
 import TeacherLabCheckPage from './pages/TeacherLabCheckPage';
+import CourseProgramPage from './pages/CourseProgramPage';
+
 
 function App() {
   const [isAuth, setIsAuth] = useState<boolean>(false);
@@ -85,6 +87,11 @@ function App() {
               <TeacherLabCheckPage /> :
               <Navigate to="/login" replace />
         } />
+        <Route path="/course/:subjectId/:classId" element={
+  isAuth ?
+    <CourseProgramPage /> :
+    <Navigate to="/login" replace />
+} />
       </Routes>
     </BrowserRouter>
   );

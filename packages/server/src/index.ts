@@ -11,6 +11,7 @@ import scheduleRoutes from './routes/schedule_routes.js';
 import dotenv from 'dotenv';
 import path from 'path';
 import labRoutes from './routes/lab_routes';
+import courseRoutes from './routes/course_routes';
 
 
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
@@ -96,6 +97,7 @@ app.set('userSockets', userSockets);
 app.use('/api/auth', authRoutes);
 app.use('/api/gradebook', gradebookRoutes);
 app.use('/api/schedule', scheduleRoutes);
+app.use('/api/course', courseRoutes);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
