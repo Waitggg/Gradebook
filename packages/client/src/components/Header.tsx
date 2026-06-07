@@ -37,7 +37,12 @@ function Header() {
     { path: '/gradebook', label: 'Журнал' },
     { path: '/schedule', label: 'Расписание' },
   ];
-
+  
+  if(user?.role==='admin')
+  {
+    navLinks.push({ path: '/manage-students', label: 'Управление'});
+  }
+  
   if (user?.role === 'student') {
     navLinks.push({ path: '/labs', label: 'Лабораторные работы' });
   }

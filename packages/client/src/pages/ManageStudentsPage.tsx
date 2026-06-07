@@ -29,16 +29,8 @@ function ManageStudentsPage() {
   const [labs, setLabs] = useState<LabWork[]>([]);
 
   const [showStudentModal, setShowStudentModal] = useState(false);
-  const [showTeacherModal, setShowTeacherModal] = useState(false);
-  const [showClassModal, setShowClassModal] = useState(false);
-  const [showSubjectModal, setShowSubjectModal] = useState(false);
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [showTeacherSubjectModal, setShowTeacherSubjectModal] = useState(false);
   
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
-  const [editingClass, setEditingClass] = useState<Class | null>(null);
-  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   
   const [studentForm, setStudentForm] = useState({ name: '', email: '', password: '' });
   const [showTeacherModal, setShowTeacherModal] = useState(false);
@@ -72,7 +64,7 @@ function ManageStudentsPage() {
       const response = await fetch('/api/auth/profile', { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
-        if (data.user.role !== 'admin') {
+        if (data.user.role == 'student') {
           navigate('/profile');
           return;
         }
@@ -86,6 +78,22 @@ function ManageStudentsPage() {
     } finally {
       setLoading(false);
     }
+  };
+  
+  const loadLabs = async () => {
+    try {
+      const res = await fetch('/api/labs/all?_=' + Date.now(), { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        const subs = await fetch('/api/gradebook/subjects', { credentials: 'include' }).then(r => r.json()).catch(() => ({ subjects: [] }));
+        const teach = await fetch('/api/gradebook/teachers', { credentials: 'include' }).then(r => r.json()).catch(() => ({ teachers: [] }));
+        setLabs((data.labs || []).map((lab: any) => ({
+          ...lab,
+          subject_name: (subs.subjects || []).find((s: any) => s.id === lab.subject_id)?.name || '',
+          teacher_name: (teach.teachers || []).find((t: any) => t.id === lab.teacher_id)?.name || ''
+        })));
+      }
+    } catch {}
   };
 
   const loadAllData = async () => {

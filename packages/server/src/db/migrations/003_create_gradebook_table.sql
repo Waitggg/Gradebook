@@ -73,9 +73,6 @@ BEGIN
     END IF;
 END $$;
 
-ALTER TABLE subjects ADD CONSTRAINT unique_subject_name UNIQUE (name);
-ALTER TABLE classes ADD CONSTRAINT unique_class_name UNIQUE (name);
-ALTER TABLE users ADD CONSTRAINT unique_user_email UNIQUE (email);
 ALTER TABLE grades ADD COLUMN IF NOT EXISTS grade_type grade_type DEFAULT 'classwork';
 
 CREATE TABLE IF NOT EXISTS homework (

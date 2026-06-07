@@ -57,6 +57,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/gradebook', gradebookRoutes);
 app.use('/api/schedule', scheduleRoutes);
 app.use('/api/labs', labRoutes);
+app.use('/api/course', courseRoutes);
 io.engine.use(sessionMiddleware);
 
 const userSockets = new Map();

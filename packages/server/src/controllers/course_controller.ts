@@ -44,7 +44,7 @@ export async function getCourseProgram(req: Request, res: Response): Promise<Res
 
 export async function createOrUpdateProgram(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
+  if (!session.userId || session.userRole == 'student') {
     return res.status(403).json({ success: false, message: 'Доступ запрещен' });
   }
 
@@ -87,7 +87,7 @@ export async function createOrUpdateProgram(req: Request, res: Response): Promis
 
 export async function deleteProgram(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
+  if (!session.userId || session.userRole == 'student') {
     return res.status(403).json({ success: false, message: 'Доступ запрещен' });
   }
 
@@ -158,7 +158,7 @@ export async function getProgramLessons(req: Request, res: Response): Promise<Re
 
 export async function createLesson(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
+  if (!session.userId || session.userRole == 'student') {
     return res.status(403).json({ success: false, message: 'Доступ запрещен' });
   }
 
@@ -201,7 +201,7 @@ export async function createLesson(req: Request, res: Response): Promise<Respons
 
 export async function updateLesson(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
+  if (!session.userId || session.userRole == 'student') {
     return res.status(403).json({ success: false, message: 'Доступ запрещен' });
   }
 
@@ -234,7 +234,7 @@ export async function updateLesson(req: Request, res: Response): Promise<Respons
 
 export async function deleteLesson(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
+  if (!session.userId || session.userRole == 'student') {
     return res.status(403).json({ success: false, message: 'Доступ запрещен' });
   }
 
@@ -282,7 +282,7 @@ export async function getLessonTypeByDate(req: Request, res: Response): Promise<
 
 export async function addMaterial(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
+  if (!session.userId || session.userRole == 'student') {
     return res.status(403).json({ success: false, message: 'Доступ запрещен' });
   }
 
@@ -310,7 +310,7 @@ export async function addMaterial(req: Request, res: Response): Promise<Response
 
 export async function deleteMaterial(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
+  if (!session.userId || session.userRole == 'student') {
     return res.status(403).json({ success: false, message: 'Доступ запрещен' });
   }
 
@@ -328,7 +328,7 @@ export async function deleteMaterial(req: Request, res: Response): Promise<Respo
 
 export async function createTeam(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
+  if (!session.userId || session.userRole == 'student') {
     return res.status(403).json({ success: false, message: 'Доступ запрещен' });
   }
 
@@ -355,7 +355,7 @@ export async function createTeam(req: Request, res: Response): Promise<Response>
 
 export async function addTeamMember(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
+  if (!session.userId || session.userRole == 'student') {
     return res.status(403).json({ success: false, message: 'Доступ запрещен' });
   }
 
@@ -407,7 +407,7 @@ export async function removeTeamMember(req: Request, res: Response): Promise<Res
 
 export async function deleteTeam(req: Request, res: Response): Promise<Response> {
   const session = req.session as SessionWithUser;
-  if (!session.userId || session.userRole !== 'teacher') {
+  if (!session.userId || session.userRole == 'student') {
     return res.status(403).json({ success: false, message: 'Доступ запрещен' });
   }
 

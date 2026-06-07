@@ -12,6 +12,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../../../cdenv') });
 interface Migration {
   id: number;
   name: string;
+  
   executed_at: Date;
 }
 

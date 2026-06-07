@@ -43,18 +43,21 @@ function App() {
   if (loading) {
     return <div className="loading">Загрузка...</div>;
   }
-
+  
   return (
     <BrowserRouter>
       {isAuth && <Header />}
       <Routes>
+        {/* ВОТ ЭТА СТРОКА РЕШАЕТ ПРОБЛЕМУ БЕЛОГО ЭКРАНА */}
+        <Route path="/" element={<Navigate to={isAuth ? "/profile" : "/login"} replace />} />
+        
         <Route path="/login" element={
           isAuth ? <Navigate to="/profile" /> : <LoginPage onLogin={handleLogin} />
         } />
         
         <Route path="/profile" element={
-          isAuth ? 
-            <ProfilePage onLogout={handleLogout} /> : 
+          isAuth ?
+            <ProfilePage onLogout={handleLogout} /> :
             <Navigate to="/login" replace />
         } />
         
@@ -75,23 +78,24 @@ function App() {
             <ManageStudentsPage /> :
             <Navigate to="/login" replace />
         } />
-
+        
         <Route path="/labs" element={
           isAuth ?
-              <LabStudentPage /> :
-              <Navigate to="/login" replace />
+            <LabStudentPage /> :
+            <Navigate to="/login" replace />
         } />
-
+        
         <Route path="/check-labs" element={
           isAuth ?
-              <TeacherLabCheckPage /> :
-              <Navigate to="/login" replace />
+            <TeacherLabCheckPage /> :
+            <Navigate to="/login" replace />
         } />
+        
         <Route path="/course/:subjectId/:classId" element={
-  isAuth ?
-    <CourseProgramPage /> :
-    <Navigate to="/login" replace />
-} />
+          isAuth ?
+            <CourseProgramPage /> :
+            <Navigate to="/login" replace />
+        } />
       </Routes>
     </BrowserRouter>
   );
