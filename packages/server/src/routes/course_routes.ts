@@ -22,25 +22,20 @@ const router = Router();
 
 router.use(authMiddleware);
 
-// Программа
 router.get('/program/:subjectId/:classId', getCourseProgram);
 router.post('/program', createOrUpdateProgram);
 router.delete('/program/:id', deleteProgram);
 
-// Занятия
 router.get('/lessons/:programId', getProgramLessons);
 router.post('/lessons', createLesson);
 router.put('/lessons/:id', updateLesson);
 router.delete('/lessons/:id', deleteLesson);
 
-// Тип урока по дате 
 router.get('/lesson-type/:subjectId/:classId/:date', getLessonTypeByDate);
 
-// Материалы
 router.post('/materials', addMaterial);
 router.delete('/materials/:id', deleteMaterial);
 
-// Команды
 router.post('/teams', createTeam);
 router.delete('/teams/:id', deleteTeam);
 router.post('/teams/members', addTeamMember);

@@ -52,7 +52,7 @@
 }
 
 #root {
-  width: 90%;
+  width: 100%;
   max-width: 100%;
   margin: 0 auto;
   text-align: center;
@@ -200,6 +200,11 @@ code {
   .date-column {
     min-width: 55px;
   }
+}
+
+.form-group input, .form-group select, .form-group textarea {
+  color: black;
+  background-color: white;
 }
 
 .column-hover {

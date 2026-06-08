@@ -1,4 +1,3 @@
-// services/course_service.ts
 import pool from '../db/pool';
 import { QueryResult } from 'pg';
 import {

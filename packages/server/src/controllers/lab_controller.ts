@@ -1,4 +1,3 @@
-// lab_controller.ts (рефакторированный)
 import { Request, Response } from 'express';
 import { BaseController } from './base_controller';
 import { LabService } from '../services/lab_service';
@@ -148,7 +147,6 @@ export class LabController extends BaseController {
         }
     }
     
-    // Методы для учителя
     async createLab(req: Request, res: Response): Promise<Response> {
         const teacherCheck = this.checkTeacher(req);
         if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
@@ -294,7 +292,6 @@ export class LabController extends BaseController {
     }
 }
 
-// Экспортируем обернутые функции
 const labController = new LabController();
 
 const wrap = (fn: Function) => {

@@ -445,7 +445,6 @@ function CourseProgramPage() {
           </div>
         </div>
         <div className="program-header-actions">
-          {/* Кнопки переключения режима отображения */}
           <div className="view-toggle">
             <button 
               className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
@@ -744,7 +743,6 @@ function CourseProgramPage() {
           gap: 12px;
         }
         
-        /* Стили для переключателя отображения */
         .view-toggle {
           display: flex;
           background: #f3f4f6;
@@ -828,7 +826,6 @@ function CourseProgramPage() {
           background: #6597f3a9;
         }
         
-        /* Контейнер уроков */
         .lessons-container {
           display: flex;
           flex-direction: column;
@@ -852,7 +849,6 @@ function CourseProgramPage() {
           }
         }
         
-        /* Карточка урока */
         .lesson-card {
           background: white;
           border-radius: 16px;
@@ -870,12 +866,10 @@ function CourseProgramPage() {
           box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         
-        /* Компактный вид карточки в grid режиме */
         .lesson-card.grid {
           padding: 16px;
         }
 
-        /* В сетке заставляем карточки равняться по высоте, чтобы сетка выглядела аккуратно */
         .lessons-container.grid .lesson-card {
           height: 100%;
         }

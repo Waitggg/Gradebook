@@ -1,4 +1,3 @@
-// controllers/course_controller.ts
 import { Request, Response } from 'express';
 import { BaseController } from './base_controller';
 import { CourseService } from '../services/course_service';
@@ -231,7 +230,6 @@ export class CourseController extends BaseController {
   }
 }
 
-// Экспортируем функции-обертки для сохранения обратной совместимости с роутером
 const courseController = new CourseController();
 
 const wrap = (fn: Function) => {

@@ -16,23 +16,28 @@ interface LabWithDetails {
 
 export class LabService extends BaseService {
 	async getStudentLabs(studentId: string, subjectId?: number): Promise<LabWithDetails[]> {
-		let query = `
-        SELECT
-            h.id, h.title, h.description,
-            to_char(h.created_at, 'YYYY-MM-DD') as issued_date,
-            to_char(h.due_date, 'YYYY-MM-DD') as deadline,
-            h.is_group, h.homework_type,
-            s.name as subject_name,
-            u.name as teacher_name,
-            ls.id as submission_id
-        FROM homework h
-                 JOIN subjects s ON h.subject_id = s.id
-                 JOIN users u ON h.teacher_id = u.id
-                 JOIN teacher_subjects ts ON h.subject_id = ts.subject_id
-                 JOIN student_classes sc ON ts.class_id = sc.class_id
-                 LEFT JOIN homework_submissions ls ON h.id = ls.homework_id AND ls.student_id = $1
-        WHERE h.homework_type = 'lab' AND sc.student_id = $1
-		`;
+let query = `
+    SELECT
+        h.id, h.title, h.description,
+        to_char(h.created_at, 'YYYY-MM-DD') as issued_date,
+        to_char(h.due_date, 'YYYY-MM-DD') as deadline,
+        h.is_group, h.homework_type,
+        s.name as subject_name,
+        u.name as teacher_name,
+        ls.id as submission_id
+    FROM homework h
+    JOIN subjects s ON h.subject_id = s.id
+    JOIN users u ON h.teacher_id = u.id
+    LEFT JOIN homework_submissions ls ON h.id = ls.homework_id AND ls.student_id = $1
+    WHERE h.homework_type = 'lab' 
+        AND EXISTS (
+            SELECT 1 
+            FROM teacher_subjects ts
+            JOIN student_classes sc ON ts.class_id = sc.class_id
+            WHERE ts.subject_id = h.subject_id 
+                AND sc.student_id = $1
+        )
+`;
 		const params: any[] = [studentId];
 		
 		if (subjectId) {
@@ -120,19 +125,41 @@ export class LabService extends BaseService {
 		return this.exists('SELECT 1 FROM homework WHERE id = $1 AND homework_type = \'lab\'', [labId]);
 	}
 	
-	async getTeacherLabs(teacherId: string): Promise<any[]> {
-		return this.query<any>(`
-        SELECT h.*, s.name as subject_name,
-               COUNT(ls.id) as submissions_count
+async getTeacherLabs(teacherId: string): Promise<any[]> {
+    if (!teacherId || teacherId === 'NaN') {
+        console.error('Invalid teacherId:', teacherId);
+        return [];
+    }
+    
+    const teacherIdNum = parseInt(teacherId);
+    if (isNaN(teacherIdNum)) {
+        console.error('Cannot parse teacherId to number:', teacherId);
+        return [];
+    }
+        
+    const labs = await this.query<any>(`
+        SELECT 
+            h.id,
+            h.title,
+            h.description,
+            to_char(h.created_at, 'YYYY-MM-DD') as issued_date,
+            to_char(h.due_date, 'YYYY-MM-DD') as deadline,
+            h.is_group,
+            s.name as subject_name,
+            u.name as teacher_name,
+            COUNT(DISTINCT ls.id) as submissions_count
         FROM homework h
-                 JOIN subjects s ON h.subject_id = s.id
-                 LEFT JOIN homework_submissions ls ON h.id = ls.homework_id
-        WHERE h.homework_type = 'lab' AND h.teacher_id = $1
-        GROUP BY h.id, s.name
+        JOIN subjects s ON h.subject_id = s.id
+        JOIN users u ON h.teacher_id = u.id
+        LEFT JOIN homework_submissions ls ON h.id = ls.homework_id
+        WHERE h.homework_type = 'lab' 
+            AND h.teacher_id = $1::integer
+        GROUP BY h.id, s.name, u.name
         ORDER BY h.due_date DESC
-		`, [teacherId]);
-	}
-	
+    `, [teacherIdNum]);
+    
+    return labs;
+}	
 	async getAllLabs(): Promise<any[]> {
 		return this.query<any>(`
         SELECT h.*, s.name as subject_name, u.name as teacher_name
@@ -218,7 +245,6 @@ export class LabService extends BaseService {
 	}
 	
 	async gradeSubmission(submissionId: number, teacherId: string, grade: number, comment?: string): Promise<any> {
-		// Явно типизируем объект сдачи, чтобы прочесть homework_id и student_id
 		const submission = await this.single<{ homework_id: number; student_id: string }>(
 			'SELECT homework_id, student_id FROM homework_submissions WHERE id = $1',
 			[submissionId]

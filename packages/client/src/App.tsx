@@ -48,7 +48,6 @@ function App() {
     <BrowserRouter>
       {isAuth && <Header />}
       <Routes>
-        {/* ВОТ ЭТА СТРОКА РЕШАЕТ ПРОБЛЕМУ БЕЛОГО ЭКРАНА */}
         <Route path="/" element={<Navigate to={isAuth ? "/profile" : "/login"} replace />} />
         
         <Route path="/login" element={

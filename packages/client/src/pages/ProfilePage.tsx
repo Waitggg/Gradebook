@@ -1,4 +1,3 @@
-// pages/ProfilePage.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -38,6 +37,7 @@ function ProfilePage({ onLogout }: ProfilePageProps) {
   const navigate = useNavigate();
   
   const [teacherClasses, setTeacherClasses] = useState<Class[]>([]);
+  const [allClasses, setAllClasses] = useState<Class[]>([]);
   const [selectedClass, setSelectedClass] = useState<number | null>(null);
   const [classGrades, setClassGrades] = useState<GradeData[]>([]);
   const [classAverages, setClassAverages] = useState<SubjectAverage[]>([]);
@@ -52,7 +52,7 @@ function ProfilePage({ onLogout }: ProfilePageProps) {
   }, []);
 
   useEffect(() => {
-    if (userRole === 'teacher' && selectedClass) {
+    if (userRole != 'student' && selectedClass) {
       fetchClassGrades();
       fetchClassAverages();
     }
@@ -71,6 +71,10 @@ function ProfilePage({ onLogout }: ProfilePageProps) {
         
         if (data.user.role === 'teacher') {
           await fetchTeacherClasses();
+        }
+        else if (data.user.role === 'admin')
+          {
+            await fetchAllClasses();
         } else {
           await fetchStudentGrades();
           await fetchStudentAverages();
@@ -95,6 +99,24 @@ function ProfilePage({ onLogout }: ProfilePageProps) {
         const data = await response.json();
         const classes = data.classes || [];
         setTeacherClasses(classes);
+        if (classes.length > 0) {
+          setSelectedClass(classes[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+    }
+  };
+
+    const fetchAllClasses = async () => {
+    try {
+      const response = await fetch('/api/gradebook/classes', {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const classes = data.classes || [];
+        setAllClasses(classes);
         if (classes.length > 0) {
           setSelectedClass(classes[0].id);
         }
@@ -333,15 +355,28 @@ const renderAveragesTable = (averages: SubjectAverage[]) => {
         <div className="progress-card">
           <div className="progress-header">
             <h2 className="progress-title">
-              {userRole === 'teacher' ? 'Успеваемость класса' : 'Моя успеваемость'}
+              {userRole != 'student' ? 'Успеваемость класса' : 'Моя успеваемость'}
             </h2>
-            {userRole === 'teacher' && teacherClasses.length > 0 && (
+            {(userRole === 'teacher' && teacherClasses.length > 0) && (
               <select
                 className="class-selector"
                 value={selectedClass || ''}
                 onChange={(e) => setSelectedClass(Number(e.target.value))}
               >
                 {teacherClasses.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {userRole === 'admin' && (
+              <select
+                className="class-selector"
+                value={selectedClass || ''}
+                onChange={(e) => setSelectedClass(Number(e.target.value))}
+              >
+                {allClasses.map((cls) => (
                   <option key={cls.id} value={cls.id}>
                     {cls.name}
                   </option>
@@ -367,12 +402,12 @@ const renderAveragesTable = (averages: SubjectAverage[]) => {
 
           <div className="progress-content">
             {activeTab === 'grades' && (
-              userRole === 'teacher'
+              userRole != 'student'
                 ? renderGradesChart(classGrades)
                 : renderGradesChart(studentGrades)
             )}
             {activeTab === 'averages' && (
-              userRole === 'teacher'
+              userRole != 'student'
                 ? renderAveragesTable(classAverages)
                 : renderAveragesTable(studentAverages)
             )}

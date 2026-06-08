@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface Student { id: number; name: string; email: string; created_at: string; }
+interface User { id: number; name: string; email: string; role: string; }
 interface Teacher { id: number; name: string; email: string; created_at: string; }
 interface Class { id: number; name: string; year: number; created_at: string; }
 interface Subject { id: number; name: string; description: string; created_at: string; }
@@ -20,6 +21,8 @@ function ManageStudentsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('students');
   const [userRole, setUserRole] = useState<string>('');
+  const [userId, setUserId] = useState<string>('');
+  const [user, setUser] = useState<User>({id: 0, name: '', email: '', role: ''});
 
   const [students, setStudents] = useState<Student[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -71,6 +74,8 @@ function ManageStudentsPage() {
         }
         
         setUserRole(data.user.role);
+        setUserId(data.user.id);
+        setUser(data.user);
         if (data.user.role === 'teacher') {
           setActiveTab('labs');
         }
@@ -640,8 +645,39 @@ function ManageStudentsPage() {
               <h2>{editingLab ? 'Редактировать' : 'Добавить'} лабораторную</h2>
               <form onSubmit={editingLab ? handleUpdateLab : handleCreateLab} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <div className="form-group"><label>Предмет</label><select value={labForm.subject_id} onChange={e => setLabForm({ ...labForm, subject_id: +e.target.value })} required><option value="">Выберите предмет</option>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-                  <div className="form-group"><label>Учитель</label><select value={labForm.teacher_id} onChange={e => setLabForm({ ...labForm, teacher_id: +e.target.value })} required><option value="">Выберите учителя</option>{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
+
+                <div className="form-group">
+                  <label>Предмет</label>
+                  <select 
+                    value={labForm.subject_id} 
+                    onChange={e => setLabForm({ ...labForm, subject_id: +e.target.value })} 
+                    required
+                  >
+                    <option value="">Выберите предмет</option>
+                    {userRole === "admin" 
+                      ? subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)
+                      : teacherSubjects.map(s => {
+                          const subject = subjects.find(subj => subj.id == s.subject_id && s.teacher_id.toString() == userId);
+                          return subject ? <option key={subject.id} value={subject.id}>{subject.name}</option> : null;
+                        })
+                    }
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Учитель</label>
+                  <select 
+                    value={labForm.teacher_id} 
+                    onChange={e => setLabForm({ ...labForm, teacher_id: +e.target.value })} 
+                    required
+                  >
+                    <option value="">Выберите учителя</option>
+                    {userRole === "admin" 
+                      ? teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                      : teachers.filter(t => t.id.toString() === userId || t.email == user.email).map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                    }
+                  </select>
+                </div>
                 </div>
                 <div className="form-group"><label>Название</label><input value={labForm.title} onChange={e => setLabForm({ ...labForm, title: e.target.value })} placeholder="Лабораторная работа №1" required /></div>
                 <div className="form-group"><label>Описание</label><textarea value={labForm.description} onChange={e => setLabForm({ ...labForm, description: e.target.value })} rows={3} placeholder="Описание задания..." /></div>

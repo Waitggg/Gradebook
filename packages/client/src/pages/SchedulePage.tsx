@@ -415,10 +415,12 @@ function SchedulePage() {
     }
   };
   
-  const getScheduleForDay = (day: number) => {
-    return schedule.filter(item => item.day_of_week === day)
-      .sort((a, b) => a.lesson_number - b.lesson_number);
-  };
+const getScheduleForDay = (day: number) => {
+  const dayLessons = schedule.filter(item => item.day_of_week === day)
+    .sort((a, b) => a.lesson_number - b.lesson_number);
+  
+  return dayLessons;
+};
   
   const getLessonTime = (lessonNumber: number) => {
     const time = lessonTimes.find(lt => lt.lesson_number === lessonNumber);
@@ -437,7 +439,7 @@ function SchedulePage() {
           <div className="schedule-lessons">
             {getScheduleForDay(day.value).map((item, index) => (
               <div
-                key={item.id || index}
+              key={`${day.value}-${item.id}-${index}`}
                 className={`schedule-lesson ${item.is_canceled ? 'canceled' : ''} ${item.is_changed ? 'changed' : ''} ${item.is_added ? 'added' : ''} ${item.subject_name == "Нет урока" ? 'none' : ''}`}
               >
                 <div className="lesson-time">{getLessonTime(item.lesson_number)}</div>
@@ -452,7 +454,6 @@ function SchedulePage() {
                   <div className="lesson-room">Кабинет: {item.room}</div>
                 )}
                 {getChangeDisplay(item)}
-                {/* Только админ может удалять обычные уроки и отменять замены */}
                 {userRole === 'admin' && !item.is_changed && !item.is_canceled && !item.is_added && !(item.subject_name == "Нет урока") && (
                   <button
                     className="btn-delete-lesson"
@@ -461,7 +462,6 @@ function SchedulePage() {
                     ✕
                   </button>
                 )}
-                {/* Только админ может отменять замены */}
                 {userRole === 'admin' && (item.is_changed || item.is_canceled || item.is_added) && (
                   <button
                     className="btn-delete-change"
@@ -487,9 +487,7 @@ function SchedulePage() {
         {userRole === 'teacher' ? 'Мое расписание' : 'Расписание занятий'}
       </h1>
       
-      {/* Верхняя панель с элементами управления - всегда на одной линии */}
       <div className="controls-row">
-        {/* Выбор класса - для учителя, студента и админа */}
         <div className="class-selector-mini">
           <label className="filter-label">Класс:</label>
           <select
@@ -505,8 +503,18 @@ function SchedulePage() {
           </select>
         </div>
         
-        {/* Блок с выбором даты - для учителя, студента и админа */}
-        <div className="date-selector">
+        {userRole === 'admin' && (
+          <>
+            <button className="btn-primary add-btn" onClick={() => setShowAddModal(true)}>
+              Добавить урок
+            </button>
+          <div className="date-selector">
+                        <button
+              className="btn-secondary change-btn"
+              onClick={() => setShowChangeModal(true)}
+            >
+              Добавить замену
+            </button>
           <label className="date-label">Дата:</label>
           <input
             type="date"
@@ -515,19 +523,6 @@ function SchedulePage() {
             onChange={(e) => setSelectedDate(e.target.value)}
           />
         </div>
-        
-        {/* Кнопки админа (добавить урок и замену) */}
-        {userRole === 'admin' && (
-          <>
-            <button className="btn-primary add-btn" onClick={() => setShowAddModal(true)}>
-              Добавить урок
-            </button>
-            <button
-              className="btn-secondary change-btn"
-              onClick={() => setShowChangeModal(true)}
-            >
-              Добавить замену
-            </button>
           </>
         )}
       </div>
@@ -706,7 +701,8 @@ function SchedulePage() {
         background: #f9fafb;
         padding: 12px 20px;
         border-radius: 12px;
-      }
+      align-items: stretch;
+}
 
       .class-selector-mini {
         min-width: 180px;
@@ -764,6 +760,7 @@ function SchedulePage() {
         border: none;
         cursor: pointer;
         font-size: 14px;
+        margin: auto 0;
       }
 
       .btn-primary:hover {
@@ -778,6 +775,7 @@ function SchedulePage() {
         border: none;
         cursor: pointer;
         font-size: 14px;
+        margin: auto 0;
       }
 
       .btn-secondary:hover {

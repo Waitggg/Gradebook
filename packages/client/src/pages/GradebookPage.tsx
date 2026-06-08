@@ -104,7 +104,6 @@ function GradebookPage() {
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
   
-  // Хелпер для проверки, является ли пользователь сотрудником (учитель или админ)
   const isStaff = userRole === 'teacher' || userRole === 'admin';
   
   const handleCellMouseEnter = (rowIndex: number, colIndex: number) => {
@@ -540,7 +539,7 @@ function GradebookPage() {
   };
   
   const handleCellClick = (studentId: number, date: string, currentValue: number | null, isAbsent: boolean, isLate: boolean) => {
-    if (!isStaff) return; // Разрешаем клик админу и тичеру
+    if (!isStaff) return;
     
     if (currentValue !== null || isAbsent || isLate) {
       updateCellValue(studentId, date, 'clear');
@@ -552,7 +551,7 @@ function GradebookPage() {
   
   const handleCellContextMenu = async (e: React.MouseEvent, studentId: number, date: string, isAbsent: boolean) => {
     e.preventDefault();
-    if (!isStaff) return; // Разрешаем админу и тичеру
+    if (!isStaff) return;
     
     if (isAbsent) {
       await updateCellValue(studentId, date, 'clear');
@@ -563,7 +562,7 @@ function GradebookPage() {
   
   const handleCellMiddleClick = async (e: React.MouseEvent, studentId: number, date: string, isLate: boolean) => {
     e.preventDefault();
-    if (!isStaff) return; // Разрешаем админу и тичеру
+    if (!isStaff) return;
     
     if (isLate) {
       await updateCellValue(studentId, date, 'clear');
@@ -630,7 +629,6 @@ function GradebookPage() {
     return <div className="loading">Загрузка...</div>;
   }
   
-  // Админ и Тичер видят полноценный журнал управления
   if (isStaff) {
     return (
       <div className="gradebook">
@@ -671,14 +669,13 @@ function GradebookPage() {
           </div>
         </div>
         
-        {/* Кнопка "Программа курса" — теперь доступна только здесь (админам и тичерам) */}
-        {selectedClass && selectedSubject && (
+        {selectedClass && selectedSubject && userRole === 'admin' && (
           <div className="course-program-link">
             <button
               className="btn-course"
               onClick={() => navigate(`/course/${selectedSubject}/${selectedClass}`)}
             >
-              📋 Программа курса
+              Программа курса
             </button>
           </div>
         )}
@@ -772,7 +769,6 @@ function GradebookPage() {
           </div>
         </div>
         
-        {/* Стили остаются без изменений */}
         <style>{`
           .gradebook { padding: 24px; max-width: 1400px; margin: 0 auto; }
           .gradebook-title { font-size: 24px; font-weight: 600; color: #1f2937; margin-bottom: 24px; }
@@ -824,14 +820,12 @@ function GradebookPage() {
             .student-column, .subject-column { min-width: 120px; }
             .date-column { min-width: 50px; }
           }
-          .btn-course { padding: 8px 16px; background: #8b5cf6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; margin-bottom: 16px; }
-          .btn-course:hover { background: #7c3aed; }
+          .btn-course { padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; margin-bottom: 16px; }
         `}</style>
       </div>
     );
   }
   
-  // Компонент для студента (Программы курса тут нет вообще)
   return (
     <div className="gradebook">
       <h1 className="gradebook-title">Мой журнал</h1>
@@ -891,7 +885,6 @@ function GradebookPage() {
         </div>
       </div>
       
-      {/* Стили для студента */}
       <style>{`
         .gradebook { padding: 24px; max-width: 1400px; margin: 0 auto; }
         .gradebook-title { font-size: 24px; font-weight: 600; color: #1f2937; margin-bottom: 24px; }

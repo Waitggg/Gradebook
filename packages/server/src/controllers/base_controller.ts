@@ -1,4 +1,3 @@
-// controllers/BaseController.ts
 import { Request, Response } from 'express';
 
 interface SessionWithUser {
@@ -22,12 +21,12 @@ export class BaseController {
     return { success: true, userId: session.userId, userRole: session.userRole };
   }
 
-  protected checkTeacher(req: Request): { success: boolean; message?: string } {
+  protected checkTeacher(req: Request): { success: boolean; message?: string; userId?: string } {
     const session = this.getSession(req);
     if (session.userRole !== 'teacher' && session.userRole !== 'admin') {
       return { success: false, message: 'Доступ запрещен' };
     }
-    return { success: true };
+    return { success: true, userId: session.userId?.toString() };
   }
 
   protected success(res: Response, data: any, status: number = 200): Response {

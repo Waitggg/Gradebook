@@ -54,7 +54,6 @@ const TeacherLabCheckPage: React.FC = () => {
         const a = document.createElement('a'); a.href = url; a.download = path.split('/').pop() || 'file'; a.click();
     };
 
-    // Группировка по командам
     const groupedSubmissions = () => {
         if (!selectedLab?.is_group) return { individual: submissions };
         const groups: Record<string, Submission[]> = {};
@@ -70,7 +69,6 @@ const TeacherLabCheckPage: React.FC = () => {
 
     return (
         <div style={{ display: 'flex', height: '100vh', background: '#f5f5f7', fontFamily: 'system-ui, sans-serif' }}>
-            {/* SIDEBAR */}
             <div style={{ width: 300, background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', boxShadow: '2px 0 8px rgba(0,0,0,0.04)' }}>
                 <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid #f0f0f0' }}>
                     <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: '#1a1a2e' }}>Проверка работ</h2>
@@ -97,7 +95,6 @@ const TeacherLabCheckPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* MAIN */}
             <div style={{ flex: 1, overflow: 'auto', padding: '40px 48px' }}>
                 {!selectedLab ? (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
@@ -207,7 +204,6 @@ const TeacherLabCheckPage: React.FC = () => {
                     )}
             </div>
 
-            {/* Confirm modal */}
             {confirmAll && grading && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
                     <div style={{ background: '#fff', borderRadius: 16, padding: 28, maxWidth: 400, width: '90%', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
