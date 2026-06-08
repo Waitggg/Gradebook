@@ -19,6 +19,7 @@ function ManageStudentsPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('students');
+  const [userRole, setUserRole] = useState<string>('');
 
   const [students, setStudents] = useState<Student[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -68,6 +69,12 @@ function ManageStudentsPage() {
           navigate('/profile');
           return;
         }
+        
+        setUserRole(data.user.role);
+        if (data.user.role === 'teacher') {
+          setActiveTab('labs');
+        }
+        
         await loadAllData();
       } else {
         navigate('/login');
@@ -599,12 +606,16 @@ function ManageStudentsPage() {
           <div className="manage-header"><h1 className="manage-title">Управление</h1><p className="manage-subtitle">Управление студентами, учителями, классами, предметами и лабораторными работами</p></div>
           <div className="manage-tabs">
             <div className="tabs-header">
-              <button className={`tab-btn ${activeTab === 'students' ? 'active' : ''}`} onClick={() => setActiveTab('students')}>Студенты</button>
-              <button className={`tab-btn ${activeTab === 'teachers' ? 'active' : ''}`} onClick={() => setActiveTab('teachers')}>Учителя</button>
-              <button className={`tab-btn ${activeTab === 'classes' ? 'active' : ''}`} onClick={() => setActiveTab('classes')}>Классы</button>
-              <button className={`tab-btn ${activeTab === 'subjects' ? 'active' : ''}`} onClick={() => setActiveTab('subjects')}>Предметы</button>
-              <button className={`tab-btn ${activeTab === 'assignments' ? 'active' : ''}`} onClick={() => setActiveTab('assignments')}>Привязка студентов</button>
-              <button className={`tab-btn ${activeTab === 'teacher-subjects' ? 'active' : ''}`} onClick={() => setActiveTab('teacher-subjects')}>Назначение учителей</button>
+              {userRole === 'admin' && (
+                <>
+                  <button className={`tab-btn ${activeTab === 'students' ? 'active' : ''}`} onClick={() => setActiveTab('students')}>Студенты</button>
+                  <button className={`tab-btn ${activeTab === 'teachers' ? 'active' : ''}`} onClick={() => setActiveTab('teachers')}>Учителя</button>
+                  <button className={`tab-btn ${activeTab === 'classes' ? 'active' : ''}`} onClick={() => setActiveTab('classes')}>Классы</button>
+                  <button className={`tab-btn ${activeTab === 'subjects' ? 'active' : ''}`} onClick={() => setActiveTab('subjects')}>Предметы</button>
+                  <button className={`tab-btn ${activeTab === 'assignments' ? 'active' : ''}`} onClick={() => setActiveTab('assignments')}>Привязка студентов</button>
+                  <button className={`tab-btn ${activeTab === 'teacher-subjects' ? 'active' : ''}`} onClick={() => setActiveTab('teacher-subjects')}>Назначение учителей</button>
+                </>
+              )}
               <button className={`tab-btn ${activeTab === 'labs' ? 'active' : ''}`} onClick={() => setActiveTab('labs')}>Лабораторные</button>
             </div>
             {activeTab === 'students' && (<div className="tab-content"><div className="section-header"><h2>Список студентов</h2><button className="btn-primary" onClick={() => { setEditingStudent(null); setStudentForm({ name: '', email: '', password: '' }); setShowStudentModal(true); }}>+ Добавить студента</button></div><div className="data-table-wrapper"><table className="data-table"><thead><tr><th>ID</th><th>Имя</th><th>Email</th><th>Дата регистрации</th><th>Действия</th></tr></thead><tbody>{students.map((s) => (<tr key={s.id}><td>{s.id}</td><td>{s.name}</td><td>{s.email}</td><td>{new Date(s.created_at).toLocaleDateString()}</td><td className="actions"><button className="btn-edit" onClick={() => { setEditingStudent(s); setStudentForm({ name: s.name, email: s.email, password: '' }); setShowStudentModal(true); }}>✏️</button><button className="btn-delete" onClick={() => handleDeleteStudent(s.id)}>🗑️</button></td></tr>))}</tbody></table></div></div>)}

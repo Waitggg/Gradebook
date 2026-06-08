@@ -82,7 +82,7 @@ function SchedulePage() {
   });
   const [showChangeModal, setShowChangeModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-
+  
   const [changeData, setChangeData] = useState({
     subject_id: 0,
     lesson_number: 1,
@@ -90,85 +90,85 @@ function SchedulePage() {
     change_type: 'replace' as 'replace' | 'cancel' | 'added',
     notes: ''
   });
-
-
+  
+  
   useEffect(() => {
     checkAuth();
   }, []);
-
+  
   useEffect(() => {
     if ((userRole === 'teacher' || userRole === 'admin') && selectedClass && selectedDate) {
       loadTeacherSchedule();
     }
   }, [selectedClass, selectedDate, userRole]);
-
+  
   useEffect(() => {
-    if (userRole === 'student' && selectedClass) {
+    if (userRole === 'student' && selectedClass && selectedDate) {
       loadStudentSchedule();
     }
-  }, [selectedClass, userRole]);
-
-
-const loadTeacherSchedule = async () => {
-  if (!selectedClass) return;
-  try {
-    const response = await fetch(`/api/schedule/class/${selectedClass}/week/${selectedDate}`, {
-      credentials: 'include'
-    });
-    if (response.ok) {
-      const data = await response.json();
-      const allLessons: ScheduleItem[] = [];
-      data.week_schedule?.forEach((day: any) => {
-        day.lessons.forEach((lesson: any) => {
-          allLessons.push({
-            ...lesson,
-            day_of_week: day.day_of_week,
-            class_name: data.class_info?.name || '',
-            class_id: selectedClass
+  }, [selectedClass, selectedDate, userRole]);
+  
+  
+  const loadTeacherSchedule = async () => {
+    if (!selectedClass) return;
+    try {
+      const response = await fetch(`/api/schedule/class/${selectedClass}/week/${selectedDate}`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const allLessons: ScheduleItem[] = [];
+        data.week_schedule?.forEach((day: any) => {
+          day.lessons.forEach((lesson: any) => {
+            allLessons.push({
+              ...lesson,
+              day_of_week: day.day_of_week,
+              class_name: data.class_info?.name || '',
+              class_id: selectedClass
+            });
           });
         });
-      });
-      
-      setSchedule(allLessons);
-      if (data.lesson_times && data.lesson_times.length > 0) {
-        setLessonTimes(data.lesson_times);
+        
+        setSchedule(allLessons);
+        if (data.lesson_times && data.lesson_times.length > 0) {
+          setLessonTimes(data.lesson_times);
+        }
       }
+    } catch (error) {
+      console.error('Load teacher schedule error:', error);
     }
-  } catch (error) {
-    console.error('Load teacher schedule error:', error);
-  }
-};
-
-const loadStudentSchedule = async () => {
-  if (!selectedClass) return;
-  try {
-    const response = await fetch(`/api/schedule/class/${selectedClass}/week/${selectedDate}`, {
-      credentials: 'include'
-    });
-    if (response.ok) {
-      const data = await response.json();
-      const allLessons: ScheduleItem[] = [];
-      data.week_schedule?.forEach((day: any) => {
-        day.lessons.forEach((lesson: any) => {
-          allLessons.push({
-            ...lesson,
-            day_of_week: day.day_of_week,
-            class_name: data.class_info?.name || '',
-            class_id: selectedClass
+  };
+  
+  const loadStudentSchedule = async () => {
+    if (!selectedClass) return;
+    try {
+      const response = await fetch(`/api/schedule/class/${selectedClass}/week/${selectedDate}`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const allLessons: ScheduleItem[] = [];
+        data.week_schedule?.forEach((day: any) => {
+          day.lessons.forEach((lesson: any) => {
+            allLessons.push({
+              ...lesson,
+              day_of_week: day.day_of_week,
+              class_name: data.class_info?.name || '',
+              class_id: selectedClass
+            });
           });
         });
-      });
-
-            setSchedule(allLessons);
-      if (data.lesson_times && data.lesson_times.length > 0) {
-        setLessonTimes(data.lesson_times);
+        
+        setSchedule(allLessons);
+        if (data.lesson_times && data.lesson_times.length > 0) {
+          setLessonTimes(data.lesson_times);
+        }
       }
+    } catch (error) {
+      console.error('Load student schedule error:', error);
     }
-  } catch (error) {
-    console.error('Load student schedule error:', error);
-  }
-};
-
+  };
+  
   const loadTeacherClasses = async () => {
     try {
       const response = await fetch('/api/gradebook/myClasses', { credentials: 'include' });
@@ -178,9 +178,8 @@ const loadStudentSchedule = async () => {
         const uniqueClasses: Class[] = Array.from(
           new Map(classesList.map((c: ApiClassResponse) => [c.id, { id: c.id, name: c.name, year: c.year }])).values()
         );
-
-          setClasses(uniqueClasses);
-        console.log(uniqueClasses)
+        
+        setClasses(uniqueClasses);
         if (uniqueClasses.length > 0 && !selectedClass) {
           setSelectedClass(uniqueClasses[0].id);
         }
@@ -189,89 +188,89 @@ const loadStudentSchedule = async () => {
       console.error('Load teacher classes error:', error);
     }
   };
-
-const handleAddChange = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!selectedClass) return;
   
-  try {
-
-    const response = await fetch('/api/schedule/changes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        class_id: selectedClass,
-        subject_id: changeData.subject_id,
-        lesson_number: changeData.lesson_number,
-        date: selectedDate,
-        room: changeData.room,
-        change_type: changeData.change_type,
-        notes: changeData.notes
-      }),
-      credentials: 'include'
-    });
+  const handleAddChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedClass) return;
     
-    if (response.ok) {
-      setShowChangeModal(false);
-      setChangeData({ subject_id: 0, lesson_number: 1, room: '', change_type: 'replace', notes: '' });
-      loadTeacherSchedule();
-      alert('Изменение успешно добавлено');
-    } else {
-      const error = await response.json();
-      alert(error.message || 'Ошибка добавления изменения');
+    try {
+      
+      const response = await fetch('/api/schedule/changes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          class_id: selectedClass,
+          subject_id: changeData.subject_id,
+          lesson_number: changeData.lesson_number,
+          date: selectedDate,
+          room: changeData.room,
+          change_type: changeData.change_type,
+          notes: changeData.notes
+        }),
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        setShowChangeModal(false);
+        setChangeData({ subject_id: 0, lesson_number: 1, room: '', change_type: 'replace', notes: '' });
+        loadTeacherSchedule();
+        alert('Изменение успешно добавлено');
+      } else {
+        const error = await response.json();
+        alert(error.message || 'Ошибка добавления изменения');
+      }
+    } catch (error) {
+      console.error('Add change error:', error);
+      alert('Ошибка добавления изменения');
     }
-  } catch (error) {
-    console.error('Add change error:', error);
-    alert('Ошибка добавления изменения');
-  }
-};
-
-const handleDeleteChange = async (changeId: number) => {
-  if (!confirm('Удалить это изменение?')) return;
-  try {
-    const response = await fetch(`/api/schedule/changes/${changeId}`, {
-      method: 'DELETE',
-      credentials: 'include'
-    });
-    
-    if (response.ok) {
-      loadTeacherSchedule();
-      alert('Изменение удалено');
-    } else {
+  };
+  
+  const handleDeleteChange = async (changeId: number) => {
+    if (!confirm('Удалить это изменение?')) return;
+    try {
+      const response = await fetch(`/api/schedule/changes/${changeId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        loadTeacherSchedule();
+        alert('Изменение удалено');
+      } else {
+        alert('Ошибка удаления');
+      }
+    } catch (error) {
+      console.error('Delete change error:', error);
       alert('Ошибка удаления');
     }
-  } catch (error) {
-    console.error('Delete change error:', error);
-    alert('Ошибка удаления');
-  }
-};
-
-const getChangeDisplay = (item: ScheduleItem) => {
-  if (item.is_canceled) {
-    return <div className="change-badge canceled">УРОК ОТМЕНЕН</div>;
-  }
-  if (item.is_changed) {
-    return (
-      <div className="change-badge replaced">
-        ЗАМЕНА: {item.subject_name} ({item.teacher_name})
-        {item.original_subject && (
-          <div className="original-info">Было: {item.original_subject} ({item.original_teacher})</div>
-        )}
-        {item.notes && <div className="notes-info">{item.notes}</div>}
-      </div>
-    );
-  }
-  if (item.is_added) {
-    return (
-      <div className="change-badge added">
-        ДОБАВЛЕН: {item.subject_name} ({item.teacher_name})
-        {item.notes && <div className="notes-info">{item.notes}</div>}
-      </div>
-    );
-  }
-  return null;
-};
-
+  };
+  
+  const getChangeDisplay = (item: ScheduleItem) => {
+    if (item.is_canceled) {
+      return <div className="change-badge canceled">УРОК ОТМЕНЕН</div>;
+    }
+    if (item.is_changed) {
+      return (
+        <div className="change-badge replaced">
+          ЗАМЕНА: {item.subject_name} ({item.teacher_name})
+          {item.original_subject && (
+            <div className="original-info">Было: {item.original_subject} ({item.original_teacher})</div>
+          )}
+          {item.notes && <div className="notes-info">{item.notes}</div>}
+        </div>
+      );
+    }
+    if (item.is_added) {
+      return (
+        <div className="change-badge added">
+          ДОБАВЛЕН: {item.subject_name} ({item.teacher_name})
+          {item.notes && <div className="notes-info">{item.notes}</div>}
+        </div>
+      );
+    }
+    return null;
+  };
+  
   const checkAuth = async () => {
     try {
       const response = await fetch('/api/auth/profile', { credentials: 'include' });
@@ -298,7 +297,7 @@ const getChangeDisplay = (item: ScheduleItem) => {
       setLoading(false);
     }
   };
-
+  
   const loadStudentClasses = async () => {
     try {
       const response = await fetch('/api/gradebook/myClasses', { credentials: 'include' });
@@ -317,7 +316,7 @@ const getChangeDisplay = (item: ScheduleItem) => {
       console.error('Load student classes error:', error);
     }
   };
-
+  
   const loadSubjects = async () => {
     try {
       const response = await fetch('/api/gradebook/subjects', { credentials: 'include' });
@@ -340,7 +339,7 @@ const getChangeDisplay = (item: ScheduleItem) => {
       console.error('Load subjects error:', error);
     }
   };
-
+  
   const loadStudentSubjects = async () => {
     try {
       const response = await fetch('/api/gradebook/my-subjects', { credentials: 'include' });
@@ -356,7 +355,7 @@ const getChangeDisplay = (item: ScheduleItem) => {
       console.error('Load student subjects error:', error);
     }
   };
-
+  
   const loadLessonTimes = async () => {
     try {
       const response = await fetch('/api/schedule/lesson-times', { credentials: 'include' });
@@ -368,7 +367,7 @@ const getChangeDisplay = (item: ScheduleItem) => {
       console.error('Load lesson times error:', error);
     }
   };
-
+  
   const handleAddSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -394,7 +393,7 @@ const getChangeDisplay = (item: ScheduleItem) => {
       alert('Ошибка добавления');
     }
   };
-
+  
   const handleDeleteSchedule = async (id: number) => {
     if (!confirm('Удалить этот урок из расписания?')) return;
     try {
@@ -404,10 +403,8 @@ const getChangeDisplay = (item: ScheduleItem) => {
       });
       
       if (response.ok) {
-        if (userRole === 'teacher') {
+        if (userRole === 'admin') {
           loadTeacherSchedule();
-        } else {
-          loadStudentSchedule();
         }
       } else {
         alert('Ошибка удаления');
@@ -417,22 +414,22 @@ const getChangeDisplay = (item: ScheduleItem) => {
       alert('Ошибка удаления');
     }
   };
-
+  
   const getScheduleForDay = (day: number) => {
     return schedule.filter(item => item.day_of_week === day)
       .sort((a, b) => a.lesson_number - b.lesson_number);
   };
-
+  
   const getLessonTime = (lessonNumber: number) => {
     const time = lessonTimes.find(lt => lt.lesson_number === lessonNumber);
     return time ? `${time.start_time.slice(0, 5)} - ${time.end_time.slice(0, 5)}` : '';
   };
-
+  
   if (loading) {
     return <div className="loading">Загрузка...</div>;
   }
-
-  const ScheduleContent = ({ showDeleteButton = false }: { showDeleteButton?: boolean }) => (
+  
+  const ScheduleContent = () => (
     <div className="schedule-grid">
       {daysOfWeek.map(day => (
         <div key={day.value} className="schedule-day">
@@ -452,10 +449,11 @@ const getChangeDisplay = (item: ScheduleItem) => {
                   <div className="lesson-teacher">{item.teacher_name}</div>
                 )}
                 {item.room && (
-                <div className="lesson-room">Кабинет: {item.room}</div>
+                  <div className="lesson-room">Кабинет: {item.room}</div>
                 )}
                 {getChangeDisplay(item)}
-                {userRole === 'teacher' && !item.is_changed && !item.is_canceled && !item.is_added && !(item.subject_name == "Нет урока") && (
+                {/* Только админ может удалять обычные уроки и отменять замены */}
+                {userRole === 'admin' && !item.is_changed && !item.is_canceled && !item.is_added && !(item.subject_name == "Нет урока") && (
                   <button
                     className="btn-delete-lesson"
                     onClick={() => handleDeleteSchedule(item.id)}
@@ -463,8 +461,9 @@ const getChangeDisplay = (item: ScheduleItem) => {
                     ✕
                   </button>
                 )}
-                {userRole === 'teacher' && (item.is_changed || item.is_canceled || item.is_added) && (
-                  <button 
+                {/* Только админ может отменять замены */}
+                {userRole === 'admin' && (item.is_changed || item.is_canceled || item.is_added) && (
+                  <button
                     className="btn-delete-change"
                     onClick={() => handleDeleteChange(item.id)}
                   >
@@ -481,104 +480,61 @@ const getChangeDisplay = (item: ScheduleItem) => {
       ))}
     </div>
   );
-
+  
   return (
     <div className="schedule-container">
       <h1 className="page-title">
         {userRole === 'teacher' ? 'Мое расписание' : 'Расписание занятий'}
       </h1>
       
-      {userRole === 'admin' ? (
-        <div className="teacher-controls">
-          <button className="btn-primary add-btn" onClick={() => setShowAddModal(true)}>
-            Добавить урок в расписание
-          </button>
-          
-          <div className="date-selector">
-            <label className="date-label">Дата:</label>
-            <input
-              type="date"
-              className="date-input"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-            />
+      {/* Верхняя панель с элементами управления - всегда на одной линии */}
+      <div className="controls-row">
+        {/* Выбор класса - для учителя, студента и админа */}
+        <div className="class-selector-mini">
+          <label className="filter-label">Класс:</label>
+          <select
+            className="filter-select"
+            value={selectedClass || ''}
+            onChange={(e) => setSelectedClass(Number(e.target.value))}
+          >
+            {classes.map((classItem) => (
+              <option key={classItem.id} value={classItem.id}>
+                {classItem.name} {classItem.year ? `(${classItem.year})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        
+        {/* Блок с выбором даты - для учителя, студента и админа */}
+        <div className="date-selector">
+          <label className="date-label">Дата:</label>
+          <input
+            type="date"
+            className="date-input"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+          />
+        </div>
+        
+        {/* Кнопки админа (добавить урок и замену) */}
+        {userRole === 'admin' && (
+          <>
+            <button className="btn-primary add-btn" onClick={() => setShowAddModal(true)}>
+              Добавить урок
+            </button>
             <button
               className="btn-secondary change-btn"
               onClick={() => setShowChangeModal(true)}
             >
-              Добавить замену на эту дату
+              Добавить замену
             </button>
-          </div>
-          
-          <div className="class-selector-mini">
-            <select
-              className="filter-select"
-              value={selectedClass || ''}
-              onChange={(e) => setSelectedClass(Number(e.target.value))}
-            >
-              {classes.map((classItem) => (
-                <option key={classItem.id} value={classItem.id}>
-                  {classItem.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      ) : userRole === 'teacher' ?  (
-        <div className="teacher-controls">
-          <button className="btn-primary add-btn" onClick={() => setShowAddModal(true)}>
-            Добавить урок в расписание
-          </button>
-          
-          <div className="date-selector">
-            <label className="date-label">Дата:</label>
-            <input
-              type="date"
-              className="date-input"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-            />
-            <button 
-              className="btn-secondary change-btn"
-              onClick={() => setShowChangeModal(true)}
-            >
-              Добавить замену на эту дату
-            </button>
-          </div>
-          
-          <div className="class-selector-mini">
-            <label className="filter-label">Класс:</label>
-            <select
-              className="filter-select"
-              value={selectedClass || ''}
-              onChange={(e) => setSelectedClass(Number(e.target.value))}
-            >
-              {classes.map((classItem) => (
-                <option key={classItem.id} value={classItem.id}>
-                  {classItem.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      ) : (
-        <div className="class-selector">
-          <label className="filter-label">Мой класс</label>
-          <div className="current-class">
-            {classes.length > 0 ? (
-              <span className="class-name">{classes[0]?.name} (выпуск {classes[0]?.year})</span>
-            ) : (
-              <span className="no-class">Класс не назначен</span>
-            )}
-          </div>
-        </div>
-      )}
-
-
+          </>
+        )}
+      </div>
       
-      <ScheduleContent showDeleteButton={userRole === 'teacher'} />
+      <ScheduleContent />
       
-      {showAddModal && (
+      {showAddModal && userRole === 'admin' && (
         <div className="modal-overlay">
           <div className="modal-content">
             <h2>Добавить урок в расписание</h2>
@@ -659,110 +615,137 @@ const getChangeDisplay = (item: ScheduleItem) => {
           </div>
         </div>
       )}
-
-      {showChangeModal && (
-  <div className="modal-overlay">
-    <div className="modal-content">
-      <h2>Добавить замену на {new Date(selectedDate).toLocaleDateString('ru-RU')}</h2>
-      <form onSubmit={handleAddChange}>
-        <div className="form-group">
-          <label>Тип изменения</label>
-          <select
-            value={changeData.change_type}
-            onChange={(e) => setChangeData({ ...changeData, change_type: e.target.value as any })}
-            required
-          >
-            <option value="replace">Замена урока</option>
-            <option value="cancel">Отмена урока</option>
-            <option value="added">Добавить урок</option>
-          </select>
+      
+      {showChangeModal && userRole === 'admin' && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>Добавить замену на {new Date(selectedDate).toLocaleDateString('ru-RU')}</h2>
+            <form onSubmit={handleAddChange}>
+              <div className="form-group">
+                <label>Тип изменения</label>
+                <select
+                  value={changeData.change_type}
+                  onChange={(e) => setChangeData({ ...changeData, change_type: e.target.value as any })}
+                  required
+                >
+                  <option value="replace">Замена урока</option>
+                  <option value="cancel">Отмена урока</option>
+                  <option value="added">Добавить урок</option>
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label>Номер урока</label>
+                <select
+                  value={changeData.lesson_number}
+                  onChange={(e) => setChangeData({ ...changeData, lesson_number: parseInt(e.target.value) })}
+                  required
+                >
+                  {lessonTimes.map(lt => (
+                    <option key={lt.lesson_number} value={lt.lesson_number}>
+                      {lt.lesson_number} урок ({lt.start_time.slice(0, 5)} - {lt.end_time.slice(0, 5)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {changeData.change_type !== 'cancel' && (
+                <>
+                  <div className="form-group">
+                    <label>Предмет</label>
+                    <select
+                      value={changeData.subject_id}
+                      onChange={(e) => setChangeData({ ...changeData, subject_id: parseInt(e.target.value) })}
+                      required
+                    >
+                      <option value="">Выберите предмет</option>
+                      {subjects.map(subject => (
+                        <option key={subject.id} value={subject.id}>{subject.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>Кабинет</label>
+                    <input
+                      type="text"
+                      value={changeData.room}
+                      onChange={(e) => setChangeData({ ...changeData, room: e.target.value })}
+                      placeholder="Например: 201"
+                    />
+                  </div>
+                </>
+              )}
+              
+              <div className="form-group">
+                <label>Примечание</label>
+                <textarea
+                  value={changeData.notes}
+                  onChange={(e) => setChangeData({ ...changeData, notes: e.target.value })}
+                  placeholder="Например: Урок перенесен в кабинет 201"
+                  rows={2}
+                />
+              </div>
+              
+              <div className="modal-buttons">
+                <button type="button" onClick={() => setShowChangeModal(false)}>Отмена</button>
+                <button type="submit">Сохранить замену</button>
+              </div>
+            </form>
+          </div>
         </div>
-        
-        <div className="form-group">
-          <label>Номер урока</label>
-          <select
-            value={changeData.lesson_number}
-            onChange={(e) => setChangeData({ ...changeData, lesson_number: parseInt(e.target.value) })}
-            required
-          >
-            {lessonTimes.map(lt => (
-              <option key={lt.lesson_number} value={lt.lesson_number}>
-                {lt.lesson_number} урок ({lt.start_time.slice(0, 5)} - {lt.end_time.slice(0, 5)})
-              </option>
-            ))}
-          </select>
-        </div>
-        
-        {changeData.change_type !== 'cancel' && (
-          <>
-            <div className="form-group">
-              <label>Предмет</label>
-              <select
-                value={changeData.subject_id}
-                onChange={(e) => setChangeData({ ...changeData, subject_id: parseInt(e.target.value) })}
-                required
-              >
-                <option value="">Выберите предмет</option>
-                {subjects.map(subject => (
-                  <option key={subject.id} value={subject.id}>{subject.name}</option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="form-group">
-              <label>Кабинет</label>
-              <input
-                type="text"
-                value={changeData.room}
-                onChange={(e) => setChangeData({ ...changeData, room: e.target.value })}
-                placeholder="Например: 201"
-              />
-            </div>
-          </>
-        )}
-        
-        <div className="form-group">
-          <label>Примечание</label>
-          <textarea
-            value={changeData.notes}
-            onChange={(e) => setChangeData({ ...changeData, notes: e.target.value })}
-            placeholder="Например: Урок перенесен в кабинет 201"
-            rows={2}
-          />
-        </div>
-        
-        <div className="modal-buttons">
-          <button type="button" onClick={() => setShowChangeModal(false)}>Отмена</button>
-          <button type="submit">Сохранить замену</button>
-        </div>
-      </form>
-    </div>
-  </div>
-)}
+      )}
       
       <style>{`
-      .teacher-controls {
+      .controls-row {
         display: flex;
         gap: 16px;
         margin-bottom: 24px;
         flex-wrap: wrap;
-        align-items: baseline;
+        align-items: flex-end;
+        background: #f9fafb;
+        padding: 12px 20px;
+        border-radius: 12px;
       }
 
-.date-selector {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  background: #f9fafb;
-  padding: 8px 16px;
-  border-radius: 8px;
-}
+      .class-selector-mini {
+        min-width: 180px;
+      }
 
-.date-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-}
+      .filter-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 500;
+        color: #6b7280;
+        margin-bottom: 4px;
+      }
+
+      .filter-select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 14px;
+        background: white;
+        color: black;
+        cursor: pointer;
+      }
+
+      .date-selector {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        background: white;
+        padding: 4px 16px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+      }
+
+      .date-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: #374151;
+      }
 
       .date-input {
         padding: 6px 10px;
@@ -773,92 +756,101 @@ const getChangeDisplay = (item: ScheduleItem) => {
         color: black;
       }
 
-.class-selector-mini {
-  min-width: 180px;
-}
+      .btn-primary {
+        background-color: #3b82f6;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+      }
 
-.btn-secondary {
-  background-color: #10b981;
-  color: white;
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-}
+      .btn-primary:hover {
+        background-color: #2563eb;
+      }
 
-.btn-secondary:hover {
-  background-color: #059669;
-}
+      .btn-secondary {
+        background-color: #10b981;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+      }
 
-.schedule-lesson.canceled {
-  background: #fee2e2;
-  opacity: 0.7;
-}
+      .btn-secondary:hover {
+        background-color: #059669;
+      }
 
-.schedule-lesson.changed {
-  background: #fef3c7;
-  border-left: 4px solid #f59e0b;
-}
+      .schedule-lesson.canceled {
+        background: #fee2e2;
+        opacity: 0.7;
+      }
 
+      .schedule-lesson.changed {
+        background: #fef3c7;
+        border-left: 4px solid #f59e0b;
+      }
 
-.schedule-lesson.added {
-  background: #c7fedc;
-  border-left: 4px solid #0bf56d;
-}
+      .schedule-lesson.added {
+        background: #c7fedc;
+        border-left: 4px solid #0bf56d;
+      }
 
       .schedule-lesson.none {
         background: #d3d2d2;
         border-left: 4px solid #707070;
       }
 
-.change-badge {
-  margin-top: 8px;
-  padding: 6px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-}
+      .change-badge {
+        margin-top: 8px;
+        padding: 6px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+      }
 
-.change-badge.canceled {
-  background: #dc2626;
-  color: white;
-}
+      .change-badge.canceled {
+        background: #dc2626;
+        color: white;
+      }
 
-.change-badge.replaced {
-  background: #f59e0b;
-  color: white;
-}
+      .change-badge.replaced {
+        background: #f59e0b;
+        color: white;
+      }
 
-.change-badge.added {
-  background: #10b981;
-  color: white;
-}
+      .change-badge.added {
+        background: #10b981;
+        color: white;
+      }
 
-.original-info {
-  font-size: 10px;
-  opacity: 0.9;
-  margin-top: 4px;
-}
+      .original-info {
+        font-size: 10px;
+        opacity: 0.9;
+        margin-top: 4px;
+      }
 
-.notes-info {
-  font-size: 10px;
-  opacity: 0.8;
-  margin-top: 4px;
-  font-style: italic;
-}
+      .notes-info {
+        font-size: 10px;
+        opacity: 0.8;
+        margin-top: 4px;
+        font-style: italic;
+      }
 
-.btn-delete-change {
-  margin-top: 8px;
-  background: none;
-  border: 1px solid #dc2626;
-  color: #dc2626;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  cursor: pointer;
-  width: 100%;
-}
+      .btn-delete-change {
+        margin-top: 8px;
+        background: none;
+        border: 1px solid #dc2626;
+        color: #dc2626;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        cursor: pointer;
+        width: 100%;
+      }
 
       .btn-delete-change:hover {
         background: #fee2e2;
@@ -872,61 +864,14 @@ const getChangeDisplay = (item: ScheduleItem) => {
       .page-title {
         font-size: 24px;
         font-weight: 600;
-        color: #aeb3b9;
-        margin-bottom: 24px;
-      }
-      
-      .class-selector {
-        margin-bottom: 20px;
-        max-width: 300px;
-        color: black;
-      }
-      
-      .filter-label {
-        display: block;
-        font-size: 14px;
-        font-weight: 500;
         color: #374151;
-        margin-bottom: 6px;
-      }
-      
-      .current-class {
-        padding: 8px 12px;
-        background: #f3f4f6;
-        border-radius: 8px;
-        border: 1px solid #e5e7eb;
-      }
-      
-      .class-name {
-        font-weight: 500;
-        color: #1f2937;
-      }
-      
-      .no-class {
-        color: #9ca3af;
-      }
-      
-      .add-btn {
-        margin-bottom: 24px;
-      }
-      
-      .btn-primary {
-        background-color: #3b82f6;
-        color: white;
-        padding: 8px 16px;
-        border-radius: 8px;
-        border: none;
-        cursor: pointer;
-        font-size: 14px;
-      }
-      
-      .btn-primary:hover {
-        background-color: #2563eb;
+        margin-bottom: 20px;
       }
       
       .schedule-grid {
         display: flex;
         gap: 20px;
+        overflow-x: auto;
       }
       
       .schedule-day {
@@ -934,7 +879,8 @@ const getChangeDisplay = (item: ScheduleItem) => {
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        min-width: 150px;
+        min-width: 280px;
+        flex: 1;
       }
       
       .day-title {
@@ -1097,6 +1043,11 @@ const getChangeDisplay = (item: ScheduleItem) => {
       @media (max-width: 768px) {
         .schedule-grid {
           flex-direction: column;
+        }
+        
+        .controls-row {
+          flex-direction: column;
+          align-items: stretch;
         }
       }
       `}</style>
