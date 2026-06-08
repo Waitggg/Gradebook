@@ -103,6 +103,15 @@ function GradebookPage() {
   const [hoveredColumn, setHoveredColumn] = useState<number | null>(null);
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
+
+  const [showReplacementModal, setShowReplacementModal] = useState(false);
+  const [replacementDate, setReplacementDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [replacementLessonNumber, setReplacementLessonNumber] = useState<number>(1);
+  const [replacementRoom, setReplacementRoom] = useState<string>('');
+  const [replacementNotes, setReplacementNotes] = useState<string>('');
+  const [replacementDates, setReplacementDates] = useState<Set<string>>(new Set());
+  const [replacementMap, setReplacementMap] = useState<Map<string, { id: number; lesson_type: string }>>(new Map());
+  const [replacementLessonType, setReplacementLessonType] = useState<'lecture' | 'lab' | 'practice' | 'control' | 'exam'>('lecture');
   
   const isStaff = userRole === 'teacher' || userRole === 'admin';
   
@@ -133,7 +142,82 @@ function GradebookPage() {
   const handleRowMouseLeave = () => {
     setHoveredRow(null);
   };
+
+const handleDeleteReplacement = async (date: string) => {
+  if (!selectedClass || !selectedSubject) return;
   
+  const changeData = replacementMap.get(date);
+  if (!changeData) {
+    alert('Замена не найдена');
+    return;
+  }
+  
+  if (!confirm(`Удалить замену на ${new Date(date).toLocaleDateString('ru-RU')}?`)) return;
+  
+  try {
+    const response = await fetch(`/api/schedule/changes/${changeData.id}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    });
+    
+    if (response.ok) {
+      alert('Замена успешно удалена');
+      if (selectedClass && selectedSubject) {
+        loadTeacherGradebookData();
+      }
+    } else {
+      const error = await response.json();
+      alert(error.message || 'Ошибка удаления замены');
+    }
+  } catch (error) {
+    console.error('Delete replacement error:', error);
+    alert('Ошибка удаления замены');
+  }
+};
+  const handleAddReplacement = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!selectedClass || !selectedSubject) {
+    alert('Выберите класс и предмет');
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/schedule/changes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        class_id: selectedClass,
+        subject_id: selectedSubject,
+        lesson_number: replacementLessonNumber,
+        date: replacementDate,
+        room: replacementRoom,
+        change_type: 'replace',
+        lesson_type: replacementLessonType,
+        notes: replacementNotes
+      }),
+      credentials: 'include'
+    });
+
+    if (response.ok) {
+      setShowReplacementModal(false);
+      setReplacementDate(new Date().toISOString().split('T')[0]);
+      setReplacementLessonNumber(1);
+      setReplacementRoom('');
+      setReplacementLessonType('lecture');
+      setReplacementNotes('');
+      alert('Замена успешно добавлена');
+      if (selectedClass && selectedSubject) {
+        loadTeacherGradebookData();
+      }
+    } else {
+      const error = await response.json();
+      alert(error.message || 'Ошибка добавления замены');
+    }
+  } catch (error) {
+    console.error('Add replacement error:', error);
+    alert('Ошибка добавления замены');
+  }
+};  
   useEffect(() => {
     checkAuth();
   }, []);
@@ -250,6 +334,27 @@ function GradebookPage() {
       if (changesResponse.ok) {
         const changesData = await changesResponse.json();
         const changes = changesData.changes || [];
+
+        const replacementInfoMap = new Map<string, { id: number; lesson_type: string }>();
+        changes.forEach((change: any) => {
+          if (change.change_type === 'replace') {
+            const changeDate = normalizeDate(change.date);
+            replacementInfoMap.set(changeDate, {
+              id: change.id,
+              lesson_type: change.lesson_type || 'lecture'
+            });
+          }
+        });
+        setReplacementMap(replacementInfoMap);
+
+        const replacementDatesSet = new Set<string>();
+        changes.forEach((change: any) => {
+          if (change.change_type === 'replace') {
+            const changeDate = normalizeDate(change.date);
+            replacementDatesSet.add(changeDate);
+          }
+        });
+        setReplacementDates(replacementDatesSet);
         
         changes.forEach((change: any) => {
           const changeDate = normalizeDate(change.date);
@@ -668,9 +773,16 @@ function GradebookPage() {
             </select>
           </div>
         </div>
-        
-        {selectedClass && selectedSubject && userRole === 'admin' && (
+
+        {selectedClass && selectedSubject && (userRole === 'admin' || userRole === 'teacher') && (
           <div className="course-program-link">
+              <button
+                  className="btn-replacement"
+                  onClick={() => setShowReplacementModal(true)}
+                  style={{ marginLeft: '12px' }}
+                >
+                  Добавить урок
+            </button>
             <button
               className="btn-course"
               onClick={() => navigate(`/course/${selectedSubject}/${selectedClass}`)}
@@ -683,23 +795,58 @@ function GradebookPage() {
         {selectedClass && selectedSubject && monthDates.length > 0 && studentsGrades.length > 0 && (
           <div className="gradebook-table-wrapper">
             <table className="gradebook-table">
-              <thead>
+            <thead>
               <tr>
                 <th className="index-column">Номер</th>
                 <th className="student-column">Ученик</th>
-                {monthDates.map((date, index) => (
-                  <th
-                    key={index}
-                    className={`date-column ${hoveredColumn === index ? 'column-hover' : ''} ${hoveredCell?.col === index ? 'column-hover' : ''}`}
-                    title={date}
-                    onMouseEnter={() => handleColumnMouseEnter(index)}
-                    onMouseLeave={handleColumnMouseLeave}
-                  >
-                    {new Date(date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                  </th>
-                ))}
+                {monthDates.map((date, index) => {
+  const hasReplacement = replacementDates.has(date);
+  const replacementData = replacementMap.get(date);
+  const lessonTypeText = replacementData?.lesson_type 
+    ? {
+        'lecture': 'Лекция',
+        'lab': 'Лабораторная',
+        'practice': 'Практика',
+        'control': 'Контрольная',
+        'exam': 'Экзамен'
+      }[replacementData.lesson_type] || ''
+    : '';
+  
+  const tooltipText = hasReplacement && lessonTypeText
+    ? `${date} ${lessonTypeText}`
+    : date;
+  
+  return (
+    <th
+      key={index}
+      className={`date-column ${hoveredColumn === index ? 'column-hover' : ''} ${hoveredCell?.col === index ? 'column-hover' : ''} ${hasReplacement ? 'has-replacement' : ''}`}
+      title={tooltipText}
+      onMouseEnter={() => handleColumnMouseEnter(index)}
+      onMouseLeave={handleColumnMouseLeave}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        if (hasReplacement) {
+          handleDeleteReplacement(date);
+        } else {
+          alert('На эту дату нет замены');
+        }
+      }}
+    >
+      {new Date(date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+      {hasReplacement && (
+        <span className="replacement-indicator">
+          {replacementData?.lesson_type === 'lecture'}
+          {replacementData?.lesson_type === 'lab'}
+          {replacementData?.lesson_type === 'practice'}
+          {replacementData?.lesson_type === 'control'}
+          {replacementData?.lesson_type === 'exam'}
+        </span>
+      )}
+    </th>
+  );
+})}
               </tr>
-              </thead>
+            </thead>
               <tbody>
               {studentsGrades.map(({ student, grades }, studentIndex) => (
                 <tr key={student.id}
@@ -767,9 +914,211 @@ function GradebookPage() {
           <div className="hint">
             Левая кнопка - ввод оценки | Правая кнопка - отсутствие (н) | Средняя кнопка - опоздание (о)
           </div>
+          
         </div>
-        
+          {showReplacementModal && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <h2>Добавить урок</h2>
+              <p style={{ marginBottom: '16px', color: '#6b7280' }}>
+                Предмет: {subjects.find(s => s.id === selectedSubject)?.name}
+              </p>
+              <form onSubmit={handleAddReplacement}>
+                <div className="form-group">
+                  <label>Дата</label>
+                  <input
+                    type="date"
+                    value={replacementDate}
+                    onChange={(e) => setReplacementDate(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Номер урока</label>
+                  <select
+                    value={replacementLessonNumber}
+                    onChange={(e) => setReplacementLessonNumber(parseInt(e.target.value))}
+                    required
+                  >
+                    {lessonTimes.map(lt => (
+                      <option key={lt.lesson_number} value={lt.lesson_number}>
+                        {lt.lesson_number} урок ({lt.start_time.slice(0, 5)} - {lt.end_time.slice(0, 5)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Тип урока</label>
+                  <select
+                    value={replacementLessonType}
+                    onChange={(e) => setReplacementLessonType(e.target.value as any)}
+                    required
+                  >
+                    <option value="lecture">Лекция</option>
+                    <option value="lab">Лабораторная</option>
+                    <option value="practice">Практика</option>
+                    <option value="control">Контрольная</option>
+                    <option value="exam">Экзамен</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Кабинет (необязательно)</label>
+                  <input
+                    type="text"
+                    value={replacementRoom}
+                    onChange={(e) => setReplacementRoom(e.target.value)}
+                    placeholder="Например: 201"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Примечание (необязательно)</label>
+                  <textarea
+                    value={replacementNotes}
+                    onChange={(e) => setReplacementNotes(e.target.value)}
+                    placeholder="Например: Урок перенесен в кабинет 201"
+                    rows={2}
+                  />
+                </div>
+
+                <div className="modal-buttons">
+                  <button type="button" onClick={() => setShowReplacementModal(false)}>Отмена</button>
+                  <button type="submit">Сохранить замену</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
         <style>{`
+
+          .date-column {
+            min-width: 60px;
+            cursor: pointer;
+            position: relative;
+          }
+
+          .date-column.has-replacement {
+            background-color: #fec7c7;
+            border-bottom: 2px solid #bd9d9d;
+          }
+
+          .replacement-indicator {
+            display: inline-block;
+            margin-left: 4px;
+            font-size: 10px;
+          }
+
+          .date-column:hover {
+            background-color: #e5e7eb;
+          }
+
+          .date-column.has-replacement:hover {
+            background-color: #dfb5b5;
+          }
+
+        .course-program-link{
+          display: flex;
+          align-items: flex-start;
+          justify-content: flex-start;
+         }
+        .btn-replacement {
+            background-color: #10b981;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+          }
+
+          .btn-replacement:hover {
+            background-color: #059669;
+          }
+
+          .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+          }
+
+          .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            width: 450px;
+            max-width: 90%;
+          }
+
+          .modal-content h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #1f2937;
+          }
+
+          .form-group {
+            margin-bottom: 16px;
+          }
+
+          .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 6px;
+          }
+
+          .form-group input,
+          .form-group select,
+          .form-group textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            color: #1f2937;
+            box-sizing: border-box;
+          }
+
+          .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 20px;
+          }
+
+          .modal-buttons button {
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+          }
+
+          .modal-buttons button:first-child {
+            background: white;
+            color: #374151;
+            border: 1px solid #d1d5db;
+          }
+
+          .modal-buttons button:last-child {
+            background: #10b981;
+            color: white;
+            border: none;
+          }
+
+          .modal-buttons button:last-child:hover {
+            background: #059669;
+          }
           .gradebook { padding: 24px; max-width: 1400px; margin: 0 auto; }
           .gradebook-title { font-size: 24px; font-weight: 600; color: #1f2937; margin-bottom: 24px; }
           .filters { display: flex; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }

@@ -486,32 +486,34 @@ class ScheduleController extends BaseController {
   }
 
   async createScheduleChange(req: Request, res: Response): Promise<Response> {
-    const auth = this.checkAuth(req);
-    if (!auth.success) return this.error(res, auth.message!, 401);
+      const auth = this.checkAuth(req);
+      if (!auth.success) return this.error(res, auth.message!, 401);
 
-    const teacherCheck = this.checkTeacher(req);
-    if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
+      const teacherCheck = this.checkTeacher(req);
+      if (!teacherCheck.success) return this.error(res, teacherCheck.message!, 403);
 
-    const { class_id, subject_id, lesson_number, date, room, change_type, notes } = req.body;
-    const normalizedDate = typeof date === 'string' ? date.split('T')[0] : date;
+      const { class_id, subject_id, lesson_number, date, room, change_type, lesson_type, notes } = req.body;
+      const normalizedDate = typeof date === 'string' ? date.split('T')[0] : date;
 
-    if (!class_id || !lesson_number || !normalizedDate) {
-      return this.error(res, 'Необходимо указать class_id, lesson_number и date', 400);
-    }
+      if (!class_id || !lesson_number || !normalizedDate) {
+        return this.error(res, 'Необходимо указать class_id, lesson_number и date', 400);
+      }
 
-    if (change_type !== 'cancel' && !subject_id) {
-      return this.error(res, 'Для замены или добавления урока необходимо указать subject_id', 400);
-    }
+      if (change_type !== 'cancel' && !subject_id) {
+        return this.error(res, 'Для замены или добавления урока необходимо указать subject_id', 400);
+      }
 
-    const change = await this.service.upsertScheduleChange(
-      { class_id, subject_id, lesson_number, room, change_type, notes },
-      auth.userId!,
-      normalizedDate
-    );
+      const finalLessonType = lesson_type || 'lecture';
 
-    return this.success(res, { change }, 201);
+      const change = await this.service.upsertScheduleChange(
+        { class_id, subject_id, lesson_number, room, change_type, lesson_type: finalLessonType, notes },
+        auth.userId!,
+        normalizedDate
+      );
+
+      return this.success(res, { change }, 201);
   }
-
+  
   async deleteScheduleChange(req: Request, res: Response): Promise<Response> {
     const auth = this.checkAuth(req);
     if (!auth.success) return this.error(res, auth.message!, 401);
