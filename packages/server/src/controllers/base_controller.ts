@@ -42,7 +42,7 @@ export class BaseController {
     console.error(defaultMessage, error);
     return this.error(res, defaultMessage);
   }
-
+  
   protected async safeExecute<T>(
     res: Response,
     action: () => Promise<T>,
@@ -54,5 +54,27 @@ export class BaseController {
     } catch (error) {
       return this.handleError(res, error, successMessage || 'Ошибка выполнения операции');
     }
+  }
+  
+  protected parseId(idParam: string): number | null {
+    const id = parseInt(idParam);
+    return isNaN(id) ? null : id;
+  }
+  
+  protected validateRequiredFields(fields: Record<string, any>): { valid: boolean; missing?: string[] } {
+    const missing = Object.entries(fields)
+      .filter(([, value]) => !value)
+      .map(([key]) => key);
+    
+    return missing.length > 0
+      ? { valid: false, missing }
+      : { valid: true };
+  }
+  
+  protected getPaginationParams(req: Request): { limit: number; offset: number } {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const offset = (page - 1) * limit;
+    return { limit, offset };
   }
 }
