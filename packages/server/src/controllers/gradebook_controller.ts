@@ -772,6 +772,8 @@ class GradebookController extends BaseController {
 
     const subjectInfo = await this.service.getSubjectInfo(subject_id);
     const teacherInfo = await this.service.getUserInfo(auth.userId!);
+    
+    const studentInfo = await this.service.getUserInfo(student_id);
 
     const io = req.app.get('io');
     const userSockets = req.app.get('userSockets');
@@ -790,6 +792,26 @@ class GradebookController extends BaseController {
       });
     }
 
+    const url = "http://192.168.56.1:8000/webhook/bot/notify";
+
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ "username":studentInfo?.name, "grade": grade})
+    })
+    .then(async (res) => {
+        const json = await res.json();
+        if (res.ok) {
+            console.log('Бот принял запрос:', json);
+        } else {
+            console.error(`FastAPI вернул ошибку (${res.status}):`, json);
+        }
+    })
+    .catch(err => console.error('Не удалось подключиться к FastAPI:', err.message));
+
+    
     return this.success(res, { grade: result }, 201);
   }
 

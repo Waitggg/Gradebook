@@ -1,0 +1,84 @@
+# # ---------- Stage 1: build ----------
+# FROM node:20-alpine AS builder
+
+# WORKDIR /app
+
+# # Копируем ВСЁ, что нужно для установки зависимостей workspaces:
+# # - корневой package.json / package-lock.json
+# # - package.json каждого workspace
+# COPY package.json package-lock.json ./
+# COPY packages/server/package.json ./packages/server/
+# COPY packages/client/package.json ./packages/client/
+
+# # Устанавливаем ТОЛЬКО зависимости сервера (с учётом workspaces)
+# # --workspace=server говорит npm ставить только для packages/server
+# # (плюс общие devDeps корня, если они нужны для сборки)
+# RUN npm ci --workspace=server --include-workspace-root
+
+# # Теперь копируем исходники сервера
+# COPY packages/server ./packages/server
+
+# # Если у сервера есть build-стадия (tsc) — раскомментируй
+# RUN npm run build --workspace=server
+
+# # ---------- Stage 2: runtime ----------
+# FROM node:20-alpine AS runtime
+
+# WORKDIR /app
+
+# ENV NODE_ENV=production
+
+# # Копируем установленные node_modules из builder
+# COPY --from=builder /app/node_modules ./node_modules
+# COPY --from=builder /app/package.json ./package.json
+# COPY --from=builder /app/package-lock.json ./package-lock.json
+
+# # Копируем пакет сервера целиком (исходники + его package.json)
+# COPY --from=builder /app/packages/server ./packages/server
+
+# # Если сервер компилируется в dist — копируй только dist и package.json:
+# # COPY --from=builder /app/packages/server/dist ./packages/server/dist
+# # COPY --from=builder /app/packages/server/package.json ./packages/server/package.json
+
+# # Папка для загрузок (multer пишет сюда)
+# RUN mkdir -p /app/packages/server/uploads
+
+# EXPOSE 3000
+
+# # Запускаем через workspace-команду, чтобы работали пути
+# CMD ["npm", "run", "start", "--workspace=server"]
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY packages/server/package.json ./packages/server/
+COPY packages/client/package.json ./packages/client/
+
+RUN npm ci --workspace=server --include-workspace-root
+
+COPY packages/server ./packages/server
+
+RUN npm run build --workspace=server
+
+RUN npm prune --omit=dev --workspace=server --include-workspace-root
+
+
+FROM node:20-alpine AS runtime
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/package-lock.json ./package-lock.json
+
+COPY --from=builder /app/packages/server/dist ./packages/server/dist
+COPY --from=builder /app/packages/server/package.json ./packages/server/package.json
+
+RUN mkdir -p /app/packages/server/uploads
+
+EXPOSE 3000
+
+CMD ["node", "packages/server/dist/index.js"]

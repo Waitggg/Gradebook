@@ -7,10 +7,10 @@ const { Pool } = pg;
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST || 'db',
   port: parseInt(process.env.DB_PORT || '5432'),
   user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || '1234',
+  password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_NAME || 'gradebook',
 });
 

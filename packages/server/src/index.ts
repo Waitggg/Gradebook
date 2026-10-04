@@ -19,16 +19,22 @@ dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 const app = express();
 const server = http.createServer(app);
 const io = new SocketServer(server, {
-  cors: {
-    origin: 'http://localhost:5173',
-    credentials: true
-  }
+  // cors: {
+  //   origin: 'http://localhost:5173',
+  //   credentials: true
+  // }
 });
 
 const PgStore = PgSession(session);
 
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: [
+    'http://localhost:5173',
+    'http://192.168.56.1:5173',
+    'http://192.168.159.1:5173',
+    'http://192.168.184.1:5173',
+    'http://192.168.43.124:5173'
+  ],
   credentials: true
 }));
 app.use(express.json());
@@ -95,10 +101,10 @@ io.on('connection', (socket) => {
 app.set('io', io);
 app.set('userSockets', userSockets);
 
-app.use('/api/auth', authRoutes);
-app.use('/api/gradebook', gradebookRoutes);
-app.use('/api/schedule', scheduleRoutes);
-app.use('/api/course', courseRoutes);
+// app.use('/api/auth', authRoutes);
+// app.use('/api/gradebook', gradebookRoutes);
+// app.use('/api/schedule', scheduleRoutes);
+// app.use('/api/course', courseRoutes);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
